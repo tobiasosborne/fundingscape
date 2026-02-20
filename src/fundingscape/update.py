@@ -6,7 +6,7 @@ import logging
 import sys
 
 from fundingscape.db import get_connection, _seed_funders, _seed_profiles
-from fundingscape.sources import cordis, ft_portal, manual
+from fundingscape.sources import cordis, ft_portal, manual, openaire
 
 logging.basicConfig(
     level=logging.INFO,
@@ -46,6 +46,14 @@ def run_update() -> None:
         logger.info("Manual: loaded %d entries", total)
     except Exception as e:
         logger.error("Manual entries failed: %s", e)
+
+    # 4. OpenAIRE (cross-funder: DFG, UKRI, NSF, SNSF, ANR, FWF, NWO, ARC)
+    logger.info("--- OpenAIRE ---")
+    try:
+        total = openaire.fetch_and_load(conn)
+        logger.info("OpenAIRE: loaded %d grants", total)
+    except Exception as e:
+        logger.error("OpenAIRE failed: %s", e)
 
     # Summary
     total_grants = conn.execute("SELECT COUNT(*) FROM grant_award").fetchone()[0]
