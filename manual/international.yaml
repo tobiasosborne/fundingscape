@@ -1,0 +1,52 @@
+# Manual funding entries: International (non-EU) sources
+
+calls:
+  # AFOSR
+  - id: afosr-baa-fy2026
+    title: "AFOSR Research Interests FY2026 (BAA)"
+    description: "Broad Agency Announcement for basic research. Quantum information science under Physics division. Open to international researchers via white paper."
+    url: "https://www.afrl.af.mil/AFOSR/"
+    status: open
+    deadline: 2026-09-30
+    keywords: ["quantum_information", "basic_research", "us_dod", "physics"]
+    programme: AFOSR
+
+  # ONR
+  - id: onr-baa-fy2025
+    title: "ONR Long Range BAA N00014-25-S-B001"
+    description: "Navy and Marine Corps Science & Technology. Rolling deadline until Sep 2026. Quantum information science included. International proposals accepted."
+    url: "https://sam.gov/opp/0efe2fde0926428f8ecc073f3fc7b5d9/view"
+    status: open
+    deadline: 2026-09-30
+    keywords: ["quantum_information", "basic_research", "us_dod", "navy"]
+    programme: ONR
+
+  # ARL
+  - id: arl-baa-foundational
+    title: "ARL BAA W911NF-23-S-0001 (Foundational Research)"
+    description: "DEVCOM Army Research Lab foundational research. Includes 'Mathematics for QIS' topic. Rolling until Nov 2027. Foreign organizations eligible."
+    url: "https://arl.devcom.army.mil/collaborate-with-us/opportunity/arl-baa/"
+    status: open
+    deadline: 2027-11-20
+    keywords: ["quantum_information", "mathematics", "basic_research", "us_dod", "army"]
+    programme: ARL
+
+  # ARL QC3 (Quantum-specific)
+  - id: arl-qc3-quantum
+    title: "ARL QC3 BAA — Quantum Characterization, Calibration, and Control"
+    description: "Dedicated quantum BAA for qubit array characterization, calibration, and control for fault-tolerant quantum computing. Foreign organizations eligible."
+    url: "https://arl.devcom.army.mil/collaborate-with-us/opportunity/qc3/"
+    status: open
+    deadline: 2025-08-26
+    keywords: ["quantum_computing", "qubits", "fault_tolerant", "calibration", "us_dod", "army"]
+    programme: ARL
+
+  # NATO SPS
+  - id: nato-sps-quantum
+    title: "NATO SPS Multi-Year Projects (Quantum Technologies)"
+    description: "Science for Peace and Security programme. Quantum is a priority EDT area. Up to 400K EUR over 3 years. Need co-directors from NATO member + partner country."
+    url: "https://www.nato.int/cps/en/natohq/topics_85373.htm"
+    status: open
+    budget: 400000
+    keywords: ["quantum_technology", "security", "international_cooperation", "nato"]
+    programme: NATO SPS

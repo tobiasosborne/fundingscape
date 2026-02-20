@@ -1,0 +1,64 @@
+# Manual funding entries: German federal funding instruments
+
+calls:
+  # DFG Major Instruments
+  - id: dfg-sachbeihilfe
+    title: "DFG Sachbeihilfe (Individual Research Grant)"
+    description: "Core DFG funding instrument. No deadline — continuous submission. Typically 1-3 years, varies by project."
+    url: "https://www.dfg.de/en/research-funding/funding-opportunities/programmes/individual/research-grants"
+    status: open
+    keywords: ["basic_research", "individual", "continuous"]
+    programme: DFG
+
+  - id: dfg-emmy-noether
+    title: "DFG Emmy Noether Programme"
+    description: "For outstanding early-career researchers to qualify for professorship. Independent junior research group. ~5 years."
+    url: "https://www.dfg.de/en/research-funding/funding-opportunities/programmes/individual/emmy-noether"
+    status: open
+    keywords: ["early_career", "junior_group", "career"]
+    programme: DFG
+
+  - id: dfg-heisenberg
+    title: "DFG Heisenberg Programme"
+    description: "For researchers who qualify for professorship. Heisenberg fellowship or professorship. Continuous submission."
+    url: "https://www.dfg.de/en/research-funding/funding-opportunities/programmes/individual/heisenberg-programme"
+    status: open
+    keywords: ["professorship", "career", "senior"]
+    programme: DFG
+
+  - id: dfg-reinhart-koselleck
+    title: "DFG Reinhart Koselleck Projects"
+    description: "High-risk, high-gain projects for established researchers. Up to 1.25M EUR over 5 years."
+    url: "https://www.dfg.de/en/research-funding/funding-opportunities/programmes/individual/reinhart-koselleck-projects"
+    status: open
+    budget: 1250000
+    keywords: ["high_risk", "established_researcher", "innovative"]
+    programme: DFG
+
+  # BMBF Quantum
+  - id: bmbf-quantum-2026
+    title: "BMBF Quantum Computing Research Programme"
+    description: "Part of the German quantum technology strategy. Multiple calls via VDI/VDE-IT as Projektträger."
+    url: "https://www.quantentechnologien.de"
+    status: forthcoming
+    keywords: ["quantum_computing", "quantum_technology", "bmbf"]
+    programme: BMBF
+
+  # Forschungszulage
+  - id: forschungszulage
+    title: "Forschungszulage (R&D Tax Credit)"
+    description: "25% tax credit on R&D personnel costs up to 1M EUR base (max 250K EUR benefit/year). Relevant for Innovailia UG. Apply via BSFZ."
+    url: "https://www.forschungszulage.de"
+    status: open
+    budget: 250000
+    keywords: ["tax_credit", "sme", "r_and_d", "company"]
+    programme: Forschungszulage
+
+  # DAAD
+  - id: daad-research-stays
+    title: "DAAD Research Stays for University Academics and Scientists"
+    description: "Funding for research stays abroad (1-3 months). Various programmes."
+    url: "https://www.daad.de/en/study-and-research-in-germany/scholarships/"
+    status: open
+    keywords: ["mobility", "international", "research_stay"]
+    programme: DAAD

@@ -1,0 +1,63 @@
+# Manual funding entries: German foundations and other sources
+
+calls:
+  # VolkswagenStiftung
+  - id: vws-experiment-2026
+    title: "VolkswagenStiftung - Experiment! (2026)"
+    description: "Funding for unconventional research ideas. Max 120,000 EUR for 18 months. Rolling deadline."
+    url: "https://www.volkswagenstiftung.de/en/funding/our-funding-portfolio-at-a-glance/experiment"
+    deadline: 2026-07-01
+    status: open
+    budget: 120000
+    keywords: ["unconventional", "high-risk", "exploratory"]
+    programme: VolkswagenStiftung
+
+  - id: vws-momentum-2026
+    title: "VolkswagenStiftung - Momentum (2026)"
+    description: "For outstanding researchers 3-5 years after first professorship. Up to 1M EUR over 5 years."
+    url: "https://www.volkswagenstiftung.de/en/funding/our-funding-portfolio-at-a-glance/momentum"
+    deadline: 2026-10-15
+    status: forthcoming
+    budget: 1000000
+    keywords: ["career", "professorship", "momentum"]
+    programme: VolkswagenStiftung
+
+  # Alexander von Humboldt
+  - id: avh-humboldt-professorship-2026
+    title: "Alexander von Humboldt Professorship (2026)"
+    description: "Germany's most valuable international research award. Up to 5M EUR. For world-leading researchers from abroad."
+    url: "https://www.humboldt-foundation.de/en/apply/sponsorship-programmes/alexander-von-humboldt-professorship"
+    deadline: 2026-09-15
+    status: forthcoming
+    budget: 5000000
+    keywords: ["professorship", "international", "top_researcher"]
+    programme: Humboldt
+
+  - id: avh-sofja-kovalevskaja-2026
+    title: "Sofja Kovalevskaja Award (2026)"
+    description: "For outstanding early-career researchers from abroad. Up to 1.65M EUR."
+    url: "https://www.humboldt-foundation.de/en/apply/sponsorship-programmes/sofja-kovalevskaja-award"
+    deadline: 2026-07-31
+    status: forthcoming
+    budget: 1650000
+    keywords: ["early_career", "international", "award"]
+    programme: Humboldt
+
+  # Carl-Zeiss-Stiftung
+  - id: czs-breakthroughs-2026
+    title: "Carl-Zeiss-Stiftung - CZS Breakthroughs"
+    description: "Funding up to 5M EUR for interdisciplinary teams. Focus on MINT subjects."
+    url: "https://www.carl-zeiss-stiftung.de/en/funding/czs-breakthroughs"
+    status: forthcoming
+    budget: 5000000
+    keywords: ["interdisciplinary", "MINT", "breakthrough"]
+    programme: Carl-Zeiss-Stiftung
+
+  # Thyssen Stiftung
+  - id: thyssen-project-2026
+    title: "Fritz Thyssen Stiftung - Research Project Grants"
+    description: "Project funding for humanities and social sciences, but also natural sciences in interdisciplinary context."
+    url: "https://www.fritz-thyssen-stiftung.de/en/funding/"
+    status: open
+    keywords: ["project_grant", "interdisciplinary"]
+    programme: Thyssen
