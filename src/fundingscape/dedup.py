@@ -30,11 +30,13 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
     enriched = _enrich_cordis_from_openaire(conn)
     ec_flagged = _flag_openaire_ec_duplicates(conn)
     api_flagged = _flag_openaire_api_duplicates(conn)
+    within_flagged = _flag_within_source_duplicates(conn)
 
     stats = {
         "enriched": enriched,
         "ec_duplicates_flagged": ec_flagged,
         "api_duplicates_flagged": api_flagged,
+        "within_source_flagged": within_flagged,
     }
     logger.info("Dedup complete: %s", stats)
     return stats
@@ -173,4 +175,48 @@ def _flag_openaire_api_duplicates(conn: duckdb.DuckDBPyConnection) -> int:
         "WHERE source = 'openaire' AND dedup_of IS NOT NULL"
     ).fetchone()[0]
     logger.info("Flagged %d OpenAIRE API duplicates of bulk", count)
+    return count
+
+
+def _flag_within_source_duplicates(conn: duckdb.DuckDBPyConnection) -> int:
+    """Flag within-source duplicates (same source + source_id).
+
+    Keeps the row with the lowest id as canonical.
+    Note: project_id collisions across funders (e.g. NHMRC #222910 vs
+    RCN #222910) are NOT duplicates — source_id includes the funder prefix.
+
+    Returns count of flagged records.
+    """
+    conn.execute("""
+        UPDATE grant_award AS dup
+        SET dedup_of = (
+            SELECT MIN(g2.id) FROM grant_award g2
+            WHERE g2.source = dup.source
+              AND g2.source_id = dup.source_id
+        )
+        WHERE dup.dedup_of IS NULL
+          AND dup.id != (
+              SELECT MIN(g3.id) FROM grant_award g3
+              WHERE g3.source = dup.source
+                AND g3.source_id = dup.source_id
+          )
+          AND EXISTS (
+              SELECT 1 FROM grant_award g4
+              WHERE g4.source = dup.source
+                AND g4.source_id = dup.source_id
+                AND g4.id != dup.id
+          )
+    """)
+
+    count = conn.execute("""
+        SELECT COUNT(*) FROM grant_award
+        WHERE dedup_of IS NOT NULL
+          AND source = (
+              SELECT source FROM grant_award g2 WHERE g2.id = grant_award.dedup_of
+          )
+          AND source_id = (
+              SELECT source_id FROM grant_award g2 WHERE g2.id = grant_award.dedup_of
+          )
+    """).fetchone()[0]
+    logger.info("Flagged %d within-source duplicates", count)
     return count

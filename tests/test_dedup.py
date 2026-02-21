@@ -9,6 +9,7 @@ from fundingscape.dedup import (
     _enrich_cordis_from_openaire,
     _flag_openaire_ec_duplicates,
     _flag_openaire_api_duplicates,
+    _flag_within_source_duplicates,
 )
 from fundingscape.models import GrantAward
 
@@ -136,6 +137,39 @@ class TestFlagOpenAIREAPIDuplicates:
             "SELECT dedup_of FROM grant_award WHERE source='openaire' AND project_id='300001'"
         ).fetchone()
         assert row[0] == bulk_id
+
+
+class TestWithinSourceDuplicates:
+    def test_flags_duplicate_source_id(self, db):
+        """Two rows with same source + source_id: second is flagged."""
+        id1 = _openaire_bulk_grant(db, "700001", funder="EC")
+        # Insert a second row with the same source_id manually
+        db.execute("""
+            INSERT INTO grant_award (id, project_title, project_id, source, source_id, status)
+            VALUES (nextval('seq_grant'), 'Duplicate EC 700001', '700001',
+                    'openaire_bulk', 'oaire_EC_700001', 'active')
+        """)
+
+        count = _flag_within_source_duplicates(db)
+
+        assert count == 1
+        # The lower id should be canonical
+        rows = db.execute("""
+            SELECT id, dedup_of FROM grant_award
+            WHERE source_id = 'oaire_EC_700001'
+            ORDER BY id
+        """).fetchall()
+        assert rows[0][1] is None  # first = canonical
+        assert rows[1][1] == id1   # second = flagged
+
+    def test_different_project_id_same_funder_not_flagged(self, db):
+        """Different project_ids from same source are NOT duplicates."""
+        _openaire_bulk_grant(db, "800001", funder="DFG")
+        _openaire_bulk_grant(db, "800002", funder="DFG")
+
+        count = _flag_within_source_duplicates(db)
+
+        assert count == 0
 
 
 class TestRunDedup:
