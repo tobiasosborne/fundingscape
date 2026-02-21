@@ -28,6 +28,7 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
     conn.execute("UPDATE grant_award SET dedup_of = NULL WHERE dedup_of IS NOT NULL")
 
     dates_fixed = _clean_date_anomalies(conn)
+    countries_fixed = _normalize_country_codes(conn)
     enriched = _enrich_cordis_from_openaire(conn)
     ec_flagged = _flag_openaire_ec_duplicates(conn)
     api_flagged = _flag_openaire_api_duplicates(conn)
@@ -35,6 +36,7 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
 
     stats = {
         "dates_fixed": dates_fixed,
+        "countries_fixed": countries_fixed,
         "enriched": enriched,
         "ec_duplicates_flagged": ec_flagged,
         "api_duplicates_flagged": api_flagged,
@@ -108,6 +110,33 @@ def _clean_date_anomalies(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
     total = sum(counts.values())
     logger.info("Date cleanup: %d fixes (%s)", total, counts)
     return counts
+
+
+# Non-standard country codes → ISO 3166-1 alpha-2
+_COUNTRY_CODE_MAP = {
+    "UK": "GB",  # CORDIS uses UK, ISO uses GB
+    "EL": "GR",  # EU convention for Greece, ISO uses GR
+}
+
+
+def _normalize_country_codes(conn: duckdb.DuckDBPyConnection) -> int:
+    """Normalize non-standard country codes to ISO 3166-1 alpha-2.
+
+    Returns count of fixed records.
+    """
+    total = 0
+    for old_code, new_code in _COUNTRY_CODE_MAP.items():
+        count = conn.execute(
+            "SELECT COUNT(*) FROM grant_award WHERE pi_country = ?", [old_code]
+        ).fetchone()[0]
+        if count:
+            conn.execute(
+                "UPDATE grant_award SET pi_country = ? WHERE pi_country = ?",
+                [new_code, old_code],
+            )
+            logger.info("Country code %s → %s: %d records", old_code, new_code, count)
+            total += count
+    return total
 
 
 def _enrich_cordis_from_openaire(conn: duckdb.DuckDBPyConnection) -> int:

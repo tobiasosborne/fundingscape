@@ -7,6 +7,7 @@ from fundingscape.db import create_tables, insert_grant
 from fundingscape.dedup import (
     run_dedup,
     _clean_date_anomalies,
+    _normalize_country_codes,
     _enrich_cordis_from_openaire,
     _flag_openaire_ec_duplicates,
     _flag_openaire_api_duplicates,
@@ -120,6 +121,36 @@ class TestCleanDateAnomalies:
         ).fetchone()
         assert str(row[0]) == "2023-01-01"
         assert str(row[1]) == "2027-12-31"
+
+
+class TestNormalizeCountryCodes:
+    def test_uk_to_gb(self, db):
+        """UK is normalized to GB."""
+        _cordis_grant(db, "CC001", pi_country="UK")
+        count = _normalize_country_codes(db)
+        row = db.execute(
+            "SELECT pi_country FROM grant_award WHERE project_id='CC001'"
+        ).fetchone()
+        assert row[0] == "GB"
+        assert count >= 1
+
+    def test_el_to_gr(self, db):
+        """EL (Greece EU convention) is normalized to GR."""
+        _cordis_grant(db, "CC002", pi_country="EL")
+        _normalize_country_codes(db)
+        row = db.execute(
+            "SELECT pi_country FROM grant_award WHERE project_id='CC002'"
+        ).fetchone()
+        assert row[0] == "GR"
+
+    def test_preserves_standard_codes(self, db):
+        """Standard ISO codes are not modified."""
+        _cordis_grant(db, "CC003", pi_country="DE")
+        _normalize_country_codes(db)
+        row = db.execute(
+            "SELECT pi_country FROM grant_award WHERE project_id='CC003'"
+        ).fetchone()
+        assert row[0] == "DE"
 
 
 class TestEnrichCordisFromOpenaire:
