@@ -6,6 +6,7 @@ import logging
 import sys
 
 from fundingscape.db import get_connection, _seed_funders, _seed_profiles
+from fundingscape.dedup import run_dedup
 from fundingscape.sources import cordis, ft_portal, manual, openaire
 
 logging.basicConfig(
@@ -55,10 +56,20 @@ def run_update() -> None:
     except Exception as e:
         logger.error("OpenAIRE failed: %s", e)
 
+    # 5. Cross-source deduplication
+    logger.info("--- Deduplication ---")
+    try:
+        stats = run_dedup(conn)
+        logger.info("Dedup: %s", stats)
+    except Exception as e:
+        logger.error("Dedup failed: %s", e)
+
     # Summary
     total_grants = conn.execute("SELECT COUNT(*) FROM grant_award").fetchone()[0]
+    deduped_grants = conn.execute("SELECT COUNT(*) FROM grant_award_deduped").fetchone()[0]
     total_calls = conn.execute("SELECT COUNT(*) FROM call").fetchone()[0]
-    logger.info("=== Update complete: %d grants, %d calls ===", total_grants, total_calls)
+    logger.info("=== Update complete: %d grants (%d unique), %d calls ===",
+                total_grants, deduped_grants, total_calls)
 
     conn.close()
 

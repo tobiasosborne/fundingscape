@@ -80,7 +80,7 @@ def funding_landscape_summary(conn: duckdb.DuckDBPyConnection) -> list[dict]:
             SUM(eu_contribution) as total_eu,
             MIN(start_date) as earliest,
             MAX(end_date) as latest
-        FROM grant_award
+        FROM grant_award_deduped
         WHERE status = 'active'
         GROUP BY source
         ORDER BY total_funding DESC NULLS LAST
@@ -117,7 +117,7 @@ def income_projection(
                 end_date,
                 DATEDIFF('month', start_date, end_date) as duration_months,
                 total_funding / NULLIF(DATEDIFF('month', start_date, end_date), 0) as monthly_rate
-            FROM grant_award
+            FROM grant_award_deduped
             WHERE pi_institution ILIKE ?
             AND status = 'active'
             AND start_date IS NOT NULL
@@ -171,7 +171,7 @@ def top_pis_by_field(
             COUNT(*) as num_grants,
             SUM(total_funding) as total_funding,
             ARRAY_AGG(DISTINCT acronym) FILTER (WHERE acronym IS NOT NULL) as projects
-        FROM grant_award
+        FROM grant_award_deduped
         WHERE (
             project_title ILIKE ?
             OR ARRAY_TO_STRING(topic_keywords, ' ') ILIKE ?
@@ -206,7 +206,7 @@ def gap_analysis(
         WITH our_sources AS (
             SELECT DISTINCT source, framework_programme
             FROM (
-                SELECT source, NULL as framework_programme FROM grant_award
+                SELECT source, NULL as framework_programme FROM grant_award_deduped
                 WHERE pi_institution ILIKE ?
                 UNION ALL
                 SELECT 'ft_portal', framework_programme FROM call
@@ -231,7 +231,7 @@ def gap_analysis(
             ap.open_calls,
             ap.next_deadline,
             CASE WHEN EXISTS (
-                SELECT 1 FROM grant_award
+                SELECT 1 FROM grant_award_deduped
                 WHERE pi_institution ILIKE ?
                 AND source_id LIKE '%' || LOWER(COALESCE(ap.framework_programme, '')) || '%'
             ) THEN 'Applied' ELSE 'Never applied' END as our_status
@@ -261,7 +261,7 @@ def historical_trends(
             COUNT(*) as num_grants,
             SUM(total_funding) as total_funding,
             SUM(eu_contribution) as total_eu
-        FROM grant_award
+        FROM grant_award_deduped
         WHERE (
             project_title ILIKE ?
             OR ARRAY_TO_STRING(topic_keywords, ' ') ILIKE ?

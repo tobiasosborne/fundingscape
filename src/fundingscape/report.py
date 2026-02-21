@@ -49,16 +49,20 @@ def _header() -> str:
 
 def _executive_summary(conn: duckdb.DuckDBPyConnection) -> str:
     total_grants = conn.execute("SELECT COUNT(*) FROM grant_award").fetchone()[0]
+    deduped_grants = conn.execute("SELECT COUNT(*) FROM grant_award_deduped").fetchone()[0]
+    duplicate_grants = conn.execute(
+        "SELECT COUNT(*) FROM grant_award WHERE dedup_of IS NOT NULL"
+    ).fetchone()[0]
     total_calls = conn.execute("SELECT COUNT(*) FROM call").fetchone()[0]
     open_calls = conn.execute(
         "SELECT COUNT(*) FROM call WHERE status IN ('open', 'forthcoming')"
     ).fetchone()[0]
     active_luh = conn.execute(
-        "SELECT COUNT(*), COALESCE(SUM(total_funding), 0) FROM grant_award "
+        "SELECT COUNT(*), COALESCE(SUM(total_funding), 0) FROM grant_award_deduped "
         "WHERE pi_institution ILIKE '%HANNOVER%' AND status = 'active'"
     ).fetchone()
     quantum_grants = conn.execute(
-        "SELECT COUNT(*) FROM grant_award WHERE project_title ILIKE '%quantum%'"
+        "SELECT COUNT(*) FROM grant_award_deduped WHERE project_title ILIKE '%quantum%'"
     ).fetchone()[0]
 
     sources = conn.execute(
@@ -75,6 +79,8 @@ def _executive_summary(conn: duckdb.DuckDBPyConnection) -> str:
 | Metric | Value |
 |--------|-------|
 | Total grants in database | {total_grants:,} |
+| Unique grants (deduplicated) | {deduped_grants:,} |
+| Duplicate grants flagged | {duplicate_grants:,} |
 | Total calls in database | {total_calls:,} |
 | Open/forthcoming calls | {open_calls:,} |
 | Active LUH grants (Horizon) | {active_luh[0]:,} |
@@ -202,9 +208,13 @@ def _data_quality(conn: duckdb.DuckDBPyConnection) -> str:
 
     # Coverage
     total_grants = conn.execute("SELECT COUNT(*) FROM grant_award").fetchone()[0]
+    deduped_grants = conn.execute("SELECT COUNT(*) FROM grant_award_deduped").fetchone()[0]
+    duplicate_grants = total_grants - deduped_grants
     total_calls = conn.execute("SELECT COUNT(*) FROM call").fetchone()[0]
 
     lines.append(f"- **Total grants loaded**: {total_grants:,}")
+    lines.append(f"- **Unique grants (deduplicated)**: {deduped_grants:,}")
+    lines.append(f"- **Duplicate grants flagged**: {duplicate_grants:,}")
     lines.append(f"- **Total calls loaded**: {total_calls:,}")
     lines.append("")
 

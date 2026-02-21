@@ -126,10 +126,35 @@ def create_tables(conn: duckdb.DuckDBPyConnection) -> None:
             topic_keywords TEXT[],
             source TEXT NOT NULL,
             source_id TEXT,
+            dedup_of INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
+    # Migration: add dedup_of column if missing (existing databases)
+    cols = {
+        r[0]
+        for r in conn.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name='grant_award' AND table_schema='main'"
+        ).fetchall()
+    }
+    if "dedup_of" not in cols:
+        conn.execute("ALTER TABLE grant_award ADD COLUMN dedup_of INTEGER")
+
+    # Indexes for dedup matching
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_grant_project_id
+        ON grant_award (project_id)
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_grant_dedup_of
+        ON grant_award (dedup_of)
+    """)
+
+    # Deduplicated view: only canonical records
+    conn.execute("CREATE OR REPLACE VIEW grant_award_deduped AS SELECT * FROM grant_award WHERE dedup_of IS NULL")
 
     conn.execute("""
         CREATE SEQUENCE IF NOT EXISTS seq_grant START 1
