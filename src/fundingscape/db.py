@@ -107,6 +107,7 @@ def create_tables(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS grant_award (
             id INTEGER PRIMARY KEY,
+            funder_id INTEGER,
             instrument_id INTEGER,
             call_id INTEGER,
             project_title TEXT NOT NULL,
@@ -132,7 +133,7 @@ def create_tables(conn: duckdb.DuckDBPyConnection) -> None:
         )
     """)
 
-    # Migration: add dedup_of column if missing (existing databases)
+    # Migration: add columns if missing (existing databases)
     cols = {
         r[0]
         for r in conn.execute(
@@ -142,6 +143,8 @@ def create_tables(conn: duckdb.DuckDBPyConnection) -> None:
     }
     if "dedup_of" not in cols:
         conn.execute("ALTER TABLE grant_award ADD COLUMN dedup_of INTEGER")
+    if "funder_id" not in cols:
+        conn.execute("ALTER TABLE grant_award ADD COLUMN funder_id INTEGER")
 
     # Indexes for dedup matching
     conn.execute("""

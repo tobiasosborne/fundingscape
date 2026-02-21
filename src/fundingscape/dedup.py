@@ -30,6 +30,7 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
     dates_fixed = _clean_date_anomalies(conn)
     countries_fixed = _normalize_country_codes(conn)
     currencies_fixed = _normalize_currency_codes(conn)
+    funders_linked = _link_funders(conn)
     enriched = _enrich_cordis_from_openaire(conn)
     ec_flagged = _flag_openaire_ec_duplicates(conn)
     api_flagged = _flag_openaire_api_duplicates(conn)
@@ -39,6 +40,7 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
         "dates_fixed": dates_fixed,
         "countries_fixed": countries_fixed,
         "currencies_fixed": currencies_fixed,
+        "funders_linked": funders_linked,
         "enriched": enriched,
         "ec_duplicates_flagged": ec_flagged,
         "api_duplicates_flagged": api_flagged,
@@ -143,6 +145,109 @@ def _normalize_country_codes(conn: duckdb.DuckDBPyConnection) -> int:
             )
             logger.info("Country code %s → %s: %d records", old_code, new_code, count)
             total += count
+    return total
+
+
+# OpenAIRE funder codes → (full name, country, type)
+_OPENAIRE_FUNDERS = {
+    "NIH": ("National Institutes of Health", "US", "foreign_gov"),
+    "NSF": ("National Science Foundation", "US", "foreign_gov"),
+    "UKRI": ("UK Research and Innovation", "GB", "foreign_gov"),
+    "SNSF": ("Swiss National Science Foundation", "CH", "foreign_gov"),
+    "FCT": ("Fundação para a Ciência e a Tecnologia", "PT", "foreign_gov"),
+    "NWO": ("Dutch Research Council", "NL", "foreign_gov"),
+    "NHMRC": ("National Health and Medical Research Council", "AU", "foreign_gov"),
+    "ARC": ("Australian Research Council", "AU", "foreign_gov"),
+    "AKA": ("Academy of Finland", "FI", "foreign_gov"),
+    "ANR": ("Agence Nationale de la Recherche", "FR", "foreign_gov"),
+    "RCN": ("Research Council of Norway", "NO", "foreign_gov"),
+    "WT": ("Wellcome Trust", "GB", "foundation"),
+    "FWF": ("Austrian Science Fund", "AT", "foreign_gov"),
+    "TUBITAK": ("Scientific and Technological Research Council of Turkey", "TR", "foreign_gov"),
+    "SFI": ("Science Foundation Ireland", "IE", "foreign_gov"),
+    "IRFD": ("Independent Research Fund Denmark", "DK", "foreign_gov"),
+    "NNF": ("Novo Nordisk Foundation", "DK", "foundation"),
+    "MZOS": ("Ministry of Science and Education (Croatia)", "HR", "foreign_gov"),
+    "HRZZ": ("Croatian Science Foundation", "HR", "foreign_gov"),
+    "INCa": ("Institut National du Cancer", "FR", "foreign_gov"),
+    "MESTD": ("Ministry of Education, Science and Tech. Dev. (Serbia)", "RS", "foreign_gov"),
+}
+
+
+def _link_funders(conn: duckdb.DuckDBPyConnection) -> int:
+    """Link grants to funders via funder_id column.
+
+    1. Ensures all known OpenAIRE funder codes exist in the funder table
+    2. Sets funder_id for CORDIS grants → EC (id=1)
+    3. Sets funder_id for OpenAIRE grants by extracting funder code from source_id
+
+    Returns count of grants linked.
+    """
+    # Ensure OpenAIRE funders exist in funder table
+    for code, (name, country, ftype) in _OPENAIRE_FUNDERS.items():
+        existing = conn.execute(
+            "SELECT id FROM funder WHERE short_name = ?", [code]
+        ).fetchone()
+        if not existing:
+            fid = conn.execute("SELECT nextval('seq_funder')").fetchone()[0]
+            conn.execute(
+                "INSERT INTO funder (id, name, short_name, country, type) VALUES (?, ?, ?, ?, ?)",
+                [fid, name, code, country, ftype],
+            )
+
+    # Build funder short_name → id mapping
+    funder_map = {
+        r[0]: r[1]
+        for r in conn.execute("SELECT short_name, id FROM funder WHERE short_name IS NOT NULL").fetchall()
+    }
+
+    total = 0
+
+    # Link CORDIS grants to EC
+    ec_id = funder_map.get("EC")
+    if ec_id:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM grant_award WHERE source = 'cordis_bulk' AND funder_id IS NULL"
+        ).fetchone()[0]
+        conn.execute(
+            "UPDATE grant_award SET funder_id = ? WHERE source = 'cordis_bulk' AND funder_id IS NULL",
+            [ec_id],
+        )
+        total += count
+
+    # Link OpenAIRE bulk grants by funder code in source_id
+    for code, fid in funder_map.items():
+        prefix = f"oaire_{code}_"
+        count = conn.execute(
+            "SELECT COUNT(*) FROM grant_award "
+            "WHERE source = 'openaire_bulk' AND funder_id IS NULL AND source_id LIKE ?",
+            [prefix + "%"],
+        ).fetchone()[0]
+        if count:
+            conn.execute(
+                "UPDATE grant_award SET funder_id = ? "
+                "WHERE source = 'openaire_bulk' AND funder_id IS NULL AND source_id LIKE ?",
+                [fid, prefix + "%"],
+            )
+            total += count
+
+    # Link OpenAIRE API grants by funder code in source_id
+    for code, fid in funder_map.items():
+        prefix = f"openaire_{code}_"
+        count = conn.execute(
+            "SELECT COUNT(*) FROM grant_award "
+            "WHERE source = 'openaire' AND funder_id IS NULL AND source_id LIKE ?",
+            [prefix + "%"],
+        ).fetchone()[0]
+        if count:
+            conn.execute(
+                "UPDATE grant_award SET funder_id = ? "
+                "WHERE source = 'openaire' AND funder_id IS NULL AND source_id LIKE ?",
+                [fid, prefix + "%"],
+            )
+            total += count
+
+    logger.info("Linked %d grants to funders", total)
     return total
 
 

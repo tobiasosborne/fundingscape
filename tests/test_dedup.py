@@ -9,6 +9,7 @@ from fundingscape.dedup import (
     _clean_date_anomalies,
     _normalize_country_codes,
     _normalize_currency_codes,
+    _link_funders,
     _enrich_cordis_from_openaire,
     _flag_openaire_ec_duplicates,
     _flag_openaire_api_duplicates,
@@ -178,6 +179,53 @@ class TestNormalizeCurrencyCodes:
             "SELECT currency FROM grant_award WHERE project_id='CUR001'"
         ).fetchone()
         assert row[0] == "EUR"
+
+
+class TestLinkFunders:
+    def test_links_cordis_to_ec(self, db):
+        """CORDIS grants get funder_id = EC."""
+        from fundingscape.db import _seed_funders
+        _seed_funders(db)
+        _cordis_grant(db, "FL001")
+
+        count = _link_funders(db)
+
+        row = db.execute(
+            "SELECT funder_id FROM grant_award WHERE project_id='FL001'"
+        ).fetchone()
+        ec_id = db.execute("SELECT id FROM funder WHERE short_name='EC'").fetchone()[0]
+        assert row[0] == ec_id
+        assert count >= 1
+
+    def test_links_openaire_bulk_by_funder_code(self, db):
+        """OpenAIRE bulk grants linked by funder code in source_id."""
+        from fundingscape.db import _seed_funders
+        _seed_funders(db)
+        _openaire_bulk_grant(db, "FL002", funder="DFG")
+
+        _link_funders(db)
+
+        row = db.execute(
+            "SELECT funder_id FROM grant_award WHERE source_id='oaire_DFG_FL002'"
+        ).fetchone()
+        dfg_id = db.execute("SELECT id FROM funder WHERE short_name='DFG'").fetchone()[0]
+        assert row[0] == dfg_id
+
+    def test_creates_missing_funders(self, db):
+        """Funders not in seed data are auto-created."""
+        from fundingscape.db import _seed_funders
+        _seed_funders(db)
+        _openaire_bulk_grant(db, "FL003", funder="NSF")
+
+        _link_funders(db)
+
+        nsf = db.execute("SELECT id, name FROM funder WHERE short_name='NSF'").fetchone()
+        assert nsf is not None
+        assert "National Science Foundation" in nsf[1]
+        row = db.execute(
+            "SELECT funder_id FROM grant_award WHERE source_id='oaire_NSF_FL003'"
+        ).fetchone()
+        assert row[0] == nsf[0]
 
 
 class TestEnrichCordisFromOpenaire:
