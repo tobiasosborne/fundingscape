@@ -27,12 +27,14 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
     # Clear all existing dedup flags so we can re-apply cleanly
     conn.execute("UPDATE grant_award SET dedup_of = NULL WHERE dedup_of IS NOT NULL")
 
+    dates_fixed = _clean_date_anomalies(conn)
     enriched = _enrich_cordis_from_openaire(conn)
     ec_flagged = _flag_openaire_ec_duplicates(conn)
     api_flagged = _flag_openaire_api_duplicates(conn)
     within_flagged = _flag_within_source_duplicates(conn)
 
     stats = {
+        "dates_fixed": dates_fixed,
         "enriched": enriched,
         "ec_duplicates_flagged": ec_flagged,
         "api_duplicates_flagged": api_flagged,
@@ -40,6 +42,72 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
     }
     logger.info("Dedup complete: %s", stats)
     return stats
+
+
+def _clean_date_anomalies(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
+    """Fix date anomalies in grant_award.
+
+    1. NULL out sentinel start dates (1900-01-01)
+    2. NULL out sentinel end dates (9999-12-31)
+    3. NULL out implausible ancient start dates (before 1950)
+    4. NULL out implausible far-future end dates (after 2040)
+    5. Swap start/end dates where start > end
+
+    Returns dict with counts per fix type.
+    """
+    counts = {}
+
+    # 1. Swap start > end dates first (before cleaning, so swapped values
+    #    get caught by the subsequent sentinel/range checks)
+    counts["swapped"] = conn.execute(
+        "SELECT COUNT(*) FROM grant_award "
+        "WHERE start_date IS NOT NULL AND end_date IS NOT NULL AND start_date > end_date"
+    ).fetchone()[0]
+    conn.execute("""
+        UPDATE grant_award
+        SET start_date = end_date, end_date = start_date
+        WHERE start_date IS NOT NULL AND end_date IS NOT NULL
+          AND start_date > end_date
+    """)
+
+    # 2. NULL out sentinel and implausible dates
+    counts["sentinel_start"] = conn.execute(
+        "SELECT COUNT(*) FROM grant_award WHERE start_date = '1900-01-01'"
+    ).fetchone()[0]
+    conn.execute("UPDATE grant_award SET start_date = NULL WHERE start_date = '1900-01-01'")
+
+    counts["sentinel_end"] = conn.execute(
+        "SELECT COUNT(*) FROM grant_award WHERE end_date = '9999-12-31'"
+    ).fetchone()[0]
+    conn.execute("UPDATE grant_award SET end_date = NULL WHERE end_date = '9999-12-31'")
+
+    counts["ancient_start"] = conn.execute(
+        "SELECT COUNT(*) FROM grant_award WHERE start_date IS NOT NULL AND YEAR(start_date) < 1950"
+    ).fetchone()[0]
+    conn.execute(
+        "UPDATE grant_award SET start_date = NULL "
+        "WHERE start_date IS NOT NULL AND YEAR(start_date) < 1950"
+    )
+
+    counts["ancient_end"] = conn.execute(
+        "SELECT COUNT(*) FROM grant_award WHERE end_date IS NOT NULL AND YEAR(end_date) < 1950"
+    ).fetchone()[0]
+    conn.execute(
+        "UPDATE grant_award SET end_date = NULL "
+        "WHERE end_date IS NOT NULL AND YEAR(end_date) < 1950"
+    )
+
+    counts["future_end"] = conn.execute(
+        "SELECT COUNT(*) FROM grant_award WHERE end_date IS NOT NULL AND YEAR(end_date) > 2040"
+    ).fetchone()[0]
+    conn.execute(
+        "UPDATE grant_award SET end_date = NULL "
+        "WHERE end_date IS NOT NULL AND YEAR(end_date) > 2040"
+    )
+
+    total = sum(counts.values())
+    logger.info("Date cleanup: %d fixes (%s)", total, counts)
+    return counts
 
 
 def _enrich_cordis_from_openaire(conn: duckdb.DuckDBPyConnection) -> int:

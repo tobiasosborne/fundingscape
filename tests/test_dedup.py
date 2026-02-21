@@ -6,6 +6,7 @@ from decimal import Decimal
 from fundingscape.db import create_tables, insert_grant
 from fundingscape.dedup import (
     run_dedup,
+    _clean_date_anomalies,
     _enrich_cordis_from_openaire,
     _flag_openaire_ec_duplicates,
     _flag_openaire_api_duplicates,
@@ -54,6 +55,71 @@ def _openaire_api_grant(db, project_id, funder="DFG", total_funding=None, **kw):
         status="active",
     )
     return insert_grant(db, g)
+
+
+class TestCleanDateAnomalies:
+    def test_nulls_sentinel_start(self, db):
+        """1900-01-01 start date is set to NULL."""
+        db.execute("""
+            INSERT INTO grant_award (id, project_title, source, source_id, start_date, end_date)
+            VALUES (nextval('seq_grant'), 'Old Grant', 'openaire_bulk', 'test_s1',
+                    '1900-01-01', '1980-12-31')
+        """)
+        counts = _clean_date_anomalies(db)
+        row = db.execute("SELECT start_date FROM grant_award WHERE source_id='test_s1'").fetchone()
+        assert row[0] is None
+        assert counts["sentinel_start"] >= 1
+
+    def test_nulls_sentinel_end(self, db):
+        """9999-12-31 end date is set to NULL."""
+        db.execute("""
+            INSERT INTO grant_award (id, project_title, source, source_id, start_date, end_date)
+            VALUES (nextval('seq_grant'), 'Ongoing Grant', 'openaire_bulk', 'test_s2',
+                    '2023-01-01', '9999-12-31')
+        """)
+        counts = _clean_date_anomalies(db)
+        row = db.execute("SELECT end_date FROM grant_award WHERE source_id='test_s2'").fetchone()
+        assert row[0] is None
+        assert counts["sentinel_end"] >= 1
+
+    def test_nulls_ancient_start(self, db):
+        """Dates before 1950 are set to NULL."""
+        db.execute("""
+            INSERT INTO grant_award (id, project_title, source, source_id, start_date)
+            VALUES (nextval('seq_grant'), 'Ancient', 'openaire_bulk', 'test_s3', '0009-05-28')
+        """)
+        counts = _clean_date_anomalies(db)
+        row = db.execute("SELECT start_date FROM grant_award WHERE source_id='test_s3'").fetchone()
+        assert row[0] is None
+
+    def test_swaps_inverted_dates(self, db):
+        """start > end dates are swapped."""
+        db.execute("""
+            INSERT INTO grant_award (id, project_title, source, source_id, start_date, end_date)
+            VALUES (nextval('seq_grant'), 'Swapped', 'openaire_bulk', 'test_s4',
+                    '2025-12-31', '2023-01-01')
+        """)
+        counts = _clean_date_anomalies(db)
+        row = db.execute(
+            "SELECT start_date, end_date FROM grant_award WHERE source_id='test_s4'"
+        ).fetchone()
+        assert str(row[0]) == "2023-01-01"
+        assert str(row[1]) == "2025-12-31"
+        assert counts["swapped"] >= 1
+
+    def test_preserves_valid_dates(self, db):
+        """Normal dates are not modified."""
+        db.execute("""
+            INSERT INTO grant_award (id, project_title, source, source_id, start_date, end_date)
+            VALUES (nextval('seq_grant'), 'Normal', 'openaire_bulk', 'test_s5',
+                    '2023-01-01', '2027-12-31')
+        """)
+        _clean_date_anomalies(db)
+        row = db.execute(
+            "SELECT start_date, end_date FROM grant_award WHERE source_id='test_s5'"
+        ).fetchone()
+        assert str(row[0]) == "2023-01-01"
+        assert str(row[1]) == "2027-12-31"
 
 
 class TestEnrichCordisFromOpenaire:
