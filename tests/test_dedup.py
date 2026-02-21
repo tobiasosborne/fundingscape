@@ -8,6 +8,7 @@ from fundingscape.dedup import (
     run_dedup,
     _clean_date_anomalies,
     _normalize_country_codes,
+    _normalize_currency_codes,
     _enrich_cordis_from_openaire,
     _flag_openaire_ec_duplicates,
     _flag_openaire_api_duplicates,
@@ -151,6 +152,32 @@ class TestNormalizeCountryCodes:
             "SELECT pi_country FROM grant_award WHERE project_id='CC003'"
         ).fetchone()
         assert row[0] == "DE"
+
+
+class TestNormalizeCurrencyCodes:
+    def test_dollar_sign_to_aud(self, db):
+        """'$' currency is normalized to AUD."""
+        db.execute("""
+            INSERT INTO grant_award (id, project_title, source, source_id,
+                                     total_funding, currency)
+            VALUES (nextval('seq_grant'), 'NHMRC Grant', 'openaire_bulk',
+                    'oaire_NHMRC_test1', 100000, '$')
+        """)
+        count = _normalize_currency_codes(db)
+        row = db.execute(
+            "SELECT currency FROM grant_award WHERE source_id='oaire_NHMRC_test1'"
+        ).fetchone()
+        assert row[0] == "AUD"
+        assert count >= 1
+
+    def test_preserves_standard_codes(self, db):
+        """Standard ISO currency codes are not modified."""
+        _cordis_grant(db, "CUR001", total_funding=500000)
+        _normalize_currency_codes(db)
+        row = db.execute(
+            "SELECT currency FROM grant_award WHERE project_id='CUR001'"
+        ).fetchone()
+        assert row[0] == "EUR"
 
 
 class TestEnrichCordisFromOpenaire:

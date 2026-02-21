@@ -29,6 +29,7 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
 
     dates_fixed = _clean_date_anomalies(conn)
     countries_fixed = _normalize_country_codes(conn)
+    currencies_fixed = _normalize_currency_codes(conn)
     enriched = _enrich_cordis_from_openaire(conn)
     ec_flagged = _flag_openaire_ec_duplicates(conn)
     api_flagged = _flag_openaire_api_duplicates(conn)
@@ -37,6 +38,7 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
     stats = {
         "dates_fixed": dates_fixed,
         "countries_fixed": countries_fixed,
+        "currencies_fixed": currencies_fixed,
         "enriched": enriched,
         "ec_duplicates_flagged": ec_flagged,
         "api_duplicates_flagged": api_flagged,
@@ -118,6 +120,11 @@ _COUNTRY_CODE_MAP = {
     "EL": "GR",  # EU convention for Greece, ISO uses GR
 }
 
+# Non-standard currency codes → ISO 4217
+_CURRENCY_CODE_MAP = {
+    "$": "AUD",  # NHMRC (Australia) uses "$" instead of "AUD"
+}
+
 
 def _normalize_country_codes(conn: duckdb.DuckDBPyConnection) -> int:
     """Normalize non-standard country codes to ISO 3166-1 alpha-2.
@@ -135,6 +142,26 @@ def _normalize_country_codes(conn: duckdb.DuckDBPyConnection) -> int:
                 [new_code, old_code],
             )
             logger.info("Country code %s → %s: %d records", old_code, new_code, count)
+            total += count
+    return total
+
+
+def _normalize_currency_codes(conn: duckdb.DuckDBPyConnection) -> int:
+    """Normalize non-standard currency codes to ISO 4217.
+
+    Returns count of fixed records.
+    """
+    total = 0
+    for old_code, new_code in _CURRENCY_CODE_MAP.items():
+        count = conn.execute(
+            "SELECT COUNT(*) FROM grant_award WHERE currency = ?", [old_code]
+        ).fetchone()[0]
+        if count:
+            conn.execute(
+                "UPDATE grant_award SET currency = ? WHERE currency = ?",
+                [new_code, old_code],
+            )
+            logger.info("Currency code %s → %s: %d records", old_code, new_code, count)
             total += count
     return total
 
