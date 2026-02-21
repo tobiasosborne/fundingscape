@@ -2,7 +2,7 @@
 
 ## Session Summary
 
-Built a complete research funding intelligence system from scratch in one session:
+Built a complete research funding intelligence system from scratch, then hardened data quality:
 
 1. **Phase 0**: Researched 30+ data sources across EU, German, foundation, and international funders
 2. **Phase 1**: Built infrastructure (DuckDB, pydantic models, HTTP cache, 71 tests)
@@ -10,8 +10,10 @@ Built a complete research funding intelligence system from scratch in one sessio
 4. **Phase 3**: Added OpenAIRE API (15K quantum grants from 10 funders)
 5. **Phase 4**: Added OpenAIRE bulk dump (3.66M grants from ALL funders worldwide)
 6. **Phase 5**: Set up git, GitHub repo, Apache license, beads issue tracker with 27 issues
+7. **Phase 6**: Cross-source deduplication — 54,301 OpenAIRE↔CORDIS duplicates flagged via soft `dedup_of` column
+8. **Phase 7**: Data integrity fixes — date anomalies (4,433), country codes (7,476), currency codes (6,367), funder linkage (3.69M grants → 35 funders)
 
-Final state: **3,711,657 grants**, **7,194 calls**, **87 tests**, **471 MB database**.
+Final state: **3,657,348 unique grants** (3,711,657 total, 54,309 duplicates flagged), **7,194 calls**, **111 tests**, **471 MB database**.
 
 ---
 
@@ -111,10 +113,11 @@ These funders have proper APIs and would add rich data:
 - **CORDIS SPARQL** (`datapipeline-y7p`): Network mapping, federated Wikidata queries
 
 ### Enrichment & Analysis
-- **Deduplication**: Same grants appear in CORDIS and OpenAIRE — deduplicate by project code
+- ~~**Deduplication**: Same grants appear in CORDIS and OpenAIRE — deduplicate by project code~~ **DONE** (Phase 6-7)
 - **Relevance scoring**: Score each call against the group's research profile
 - **Network mapping**: Who collaborates with whom in quantum computing?
 - **Publication linking**: OpenAlex/OpenAIRE link grants to publications — measure research output per EUR
+- **EUR conversion**: Add `total_funding_eur` column with historical exchange rates for cross-currency comparison
 
 ### Commercial Sources (if budget allows)
 - **Dimensions API**: Most comprehensive commercial grant database, would cover most gaps
@@ -128,6 +131,8 @@ These funders have proper APIs and would add rich data:
 - DuckDB single file at `data/db/fundingscape.duckdb` (471 MB)
 - Schema defined in `src/fundingscape/db.py`
 - Tables: `grant_award`, `call`, `funder`, `funding_instrument`, `eligibility_profile`, `data_source`, `change_log`
+- View: `grant_award_deduped` — canonical grants only (`WHERE dedup_of IS NULL`), use this for all queries
+- Key columns added: `dedup_of` (soft dedup flag), `funder_id` (links to funder table, 99.5% coverage)
 - Use `duckdb.connect('data/db/fundingscape.duckdb')` to query directly
 
 ### Caching
@@ -154,9 +159,10 @@ These funders have proper APIs and would add rich data:
 ### Environment
 - Python 3.12.3, uv 0.9.17
 - DuckDB 1.4.4, pydantic 2.12.5, httpx 0.28.1
-- 87 tests, all passing in <2 seconds
+- 111 tests, all passing in <4 seconds
 - GitHub: https://github.com/tobiasosborne/fundingscape
-- Issues: `bd list` (27 issues, 26 open)
+- Data integrity pipeline: `src/fundingscape/dedup.py` (date cleanup, country/currency normalization, funder linkage, cross-source dedup — all idempotent)
+- Issues: `bd list` (6 P1 closed, ~37 open)
 
 ---
 
@@ -164,7 +170,7 @@ These funders have proper APIs and would add rich data:
 
 ```bash
 make update     # Run full pipeline (CORDIS + F&T Portal + Manual + OpenAIRE Bulk)
-make test       # Run 87 tests
+make test       # Run 111 tests
 make report     # Generate REPORT.md
 make clean      # Delete database and cache
 
@@ -176,7 +182,16 @@ bd close <id>   # Close an issue
 uv run python3 -c "
 import duckdb
 conn = duckdb.connect('data/db/fundingscape.duckdb')
-print(conn.execute('SELECT COUNT(*) FROM grant_award').fetchone())
+print(conn.execute('SELECT COUNT(*) FROM grant_award_deduped').fetchone())
+conn.close()
+"
+
+# Run data integrity pipeline (dedup + normalization)
+uv run python3 -c "
+from fundingscape.db import get_connection
+from fundingscape.dedup import run_dedup
+conn = get_connection()
+print(run_dedup(conn))
 conn.close()
 "
 ```
