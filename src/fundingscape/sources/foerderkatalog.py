@@ -108,6 +108,7 @@ def _submit_search(session: httpx.Client, keyword: str, jsessionid: str) -> str:
             "actionMode": "searchlist",
             "suche.detailSuche": "true",
             "suche.themaSuche[0]": keyword,
+            "suche.lfdVhb": "N",  # Include completed projects (default J = only running)
             "submitAction": "Detailsuche starten",
         },
     )

@@ -182,7 +182,7 @@ def reinit_and_search(session) -> str:
 @click.command()
 @click.option("--reset", is_flag=True, help="Discard checkpoint, start from scratch")
 @click.option("--status", is_flag=True, help="Show progress and exit")
-@click.option("--batch-size", default=100, help="Rows per page (max 100)")
+@click.option("--batch-size", default=1000, help="Rows per page (max 1000)")
 @click.option("--delay", default=2.5, type=float, help="Seconds between requests")
 def main(reset: bool, status: bool, batch_size: int, delay: float) -> None:
     """Scrape all Förderkatalog projects into the database."""
