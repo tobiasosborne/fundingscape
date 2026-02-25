@@ -14,6 +14,7 @@ Built a complete research funding intelligence system from scratch, then hardene
 8. **Phase 7**: Data integrity fixes — date anomalies (4,433), country codes (7,476), currency codes (6,367), funder linkage (3.69M grants → 35 funders)
 9. **Phase 8**: DFG GEPRIS scraper — updated selectors for current site, pagination support, wired into pipeline with GEPRIS↔OpenAIRE dedup
 10. **Phase 9**: BMBF Förderkatalog scraper — reverse-engineered JSP form-based search, POST pagination, 286 quantum projects (€420M)
+11. **Phase 10**: Resumable bulk scrapers — standalone CLI scripts with checkpoint/resume for full GEPRIS (152K) and Förderkatalog (268K) dumps
 
 Final state: **3,657,348+ unique grants**, **7,194 calls**, **167 tests**, **~475 MB database**.
 
@@ -24,16 +25,22 @@ Final state: **3,657,348+ unique grants**, **7,194 calls**, **167 tests**, **~47
 ### ~~1. Run DFG GEPRIS Scraper~~ DONE (Phase 8)
 Scraper updated with current GEPRIS selectors (`div.results h2 a`, `h1.facelift`, `span.name`), pagination via `hitsPerPage`/`index` params, 22 tests. Wired into `update.py` with GEPRIS↔OpenAIRE DFG dedup in `dedup.py`. Run with `max_detail_pages=N` to control scope.
 
-### ~~2. BMBF Förderkatalog~~ DONE (Phase 9)
-Full scraper at `src/fundingscape/sources/foerderkatalog.py`. Reverse-engineered JSP POST form: session init, search with `suche.themaSuche[0]`, pagination via `suche.listrowfrom`/`suche.listrowpersite`. Search results table contains most fields (no detail pages needed). 286 quantum projects, €420M. 34 tests. No bulk export exists — scraping is the only option.
+### ~~2. BMBF Förderkatalog~~ DONE (Phase 9-10)
+Full scraper at `src/fundingscape/sources/foerderkatalog.py`. Reverse-engineered JSP POST form: session init, search with `suche.themaSuche[0]`, pagination via `suche.listrowfrom`/`suche.listrowpersite`. Key discovery: `suche.lfdVhb=N` must be set to include completed projects (default shows only running = 34K of 268K). Standalone bulk scraper at `scripts/scrape_foerderkatalog.py` with checkpoint/resume, 1000 rows/page.
 
-### 1. Expand GEPRIS Detail Fetching
-The GEPRIS scraper currently loads only 5 detail pages (from live test). Run with higher `max_detail_pages` to get PI names, institutions, funding amounts for more DFG projects. Cross-reference with OpenAIRE DFG records to enrich missing amounts.
+### 1. Finish Förderkatalog Bulk Scrape (IN PROGRESS)
+**Status**: 26,010 / 268,164 loaded (9.7%), checkpoint saved at row 26,011.
+**To resume**: `uv run python scripts/scrape_foerderkatalog.py` (~50 min remaining)
+**To continue on another machine**: Copy `data/db/fundingscape.duckdb` and `data/cache/foerderkatalog/checkpoint.json` into the cloned repo, then run the command above.
 
-### 2. Fix DFG Funding Amounts
-**Current issue**: OpenAIRE has 32,198 DFG grants but most show €0 funding. The DFG doesn't report funding amounts to OpenAIRE. Two options:
-- Scrape amounts from GEPRIS detail pages (expand step 1)
-- Cross-reference GEPRIS data with OpenAIRE by project code to enrich records
+### 2. Run GEPRIS Bulk Scrape (NOT STARTED)
+**Script**: `scripts/scrape_gepris.py` — two-phase approach:
+- Phase 1 (listing): `--listing-only` — catalogue browse for all 152K project IDs (~127 min)
+- Phase 2 (details): `--details-only` — fetch PI, institution, funding per project (~106 hours)
+**To start**: `uv run python scripts/scrape_gepris.py --listing-only`
+
+### 3. Fix DFG Funding Amounts
+**Current issue**: OpenAIRE has 32,198 DFG grants but most show €0 funding. The DFG doesn't report funding amounts to OpenAIRE. Solution: cross-reference GEPRIS detail data (from step 2) with OpenAIRE by project code to enrich records.
 
 ### 4. ERC PI-Specific Download
 **Issue**: `datapipeline-bvx`
@@ -129,11 +136,14 @@ These funders have proper APIs and would add rich data:
 - F&T Portal: no rate limit (single JSON file)
 - OpenAIRE API: 60 req/hr unauthenticated, 7200 req/hr with token
 - GEPRIS: 2.5s delay between requests (be respectful, no API)
+- Förderkatalog: 2.5s delay, 1000 rows/page, ~5s per page
 - Simpler.Grants.gov: 60 req/min, 10K req/day
 
 ### Key File Locations
 - Database: `data/db/fundingscape.duckdb`
 - Cache: `data/cache/`
+- Förderkatalog checkpoint: `data/cache/foerderkatalog/checkpoint.json`
+- GEPRIS checkpoint: `data/cache/gepris/bulk_checkpoint.json`
 - OpenAIRE dump: `data/cache/openaire/project.tar`
 - CORDIS CSVs: `data/cache/cordis/`
 - Manual entries: `manual/*.yaml`
@@ -142,7 +152,7 @@ These funders have proper APIs and would add rich data:
 ### Environment
 - Python 3.12.3, uv 0.9.17
 - DuckDB 1.4.4, pydantic 2.12.5, httpx 0.28.1
-- 111 tests, all passing in <4 seconds
+- 167 tests, all passing in <6 seconds
 - GitHub: https://github.com/tobiasosborne/fundingscape
 - Data integrity pipeline: `src/fundingscape/dedup.py` (date cleanup, country/currency normalization, funder linkage, cross-source dedup — all idempotent)
 - Issues: `bd list` (6 P1 closed, ~37 open)
@@ -153,7 +163,14 @@ These funders have proper APIs and would add rich data:
 
 ```bash
 make update     # Run full pipeline (CORDIS + F&T Portal + Manual + OpenAIRE Bulk)
-make test       # Run 111 tests
+make test       # Run 167 tests
+
+# Resumable bulk scrapers (run from any machine with DB + checkpoint files)
+uv run python scripts/scrape_foerderkatalog.py          # resume full 268K Förderkatalog
+uv run python scripts/scrape_foerderkatalog.py --status  # check progress
+uv run python scripts/scrape_gepris.py --listing-only    # phase 1: collect 152K project IDs
+uv run python scripts/scrape_gepris.py --details-only    # phase 2: fetch detail pages
+uv run python scripts/scrape_gepris.py --status          # check progress
 make report     # Generate REPORT.md
 make clean      # Delete database and cache
 
