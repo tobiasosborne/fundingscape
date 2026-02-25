@@ -487,6 +487,11 @@ def main(
 
     conn = get_connection()
 
+    # Resync sequence to avoid primary key conflicts
+    max_id = conn.execute("SELECT COALESCE(MAX(id), 0) FROM grant_award").fetchone()[0]
+    conn.execute(f"DROP SEQUENCE IF EXISTS seq_grant; CREATE SEQUENCE seq_grant START {max_id + 1}")
+    logger.info("Grant sequence reset to %d", max_id + 1)
+
     # Phase 1: Listing
     if not details_only:
         console.print("\n[bold cyan]═══ Phase 1: Catalogue Listing ═══[/bold cyan]\n")

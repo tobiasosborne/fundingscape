@@ -129,8 +129,12 @@ def fetch_with_retry(
         try:
             html = _fetch_results_page(session, jsessionid, row_from, rows_per_page)
 
-            # Check for session expiry (redirect to search mask or empty results)
-            if "actionMode=searchmask" in html or "Suchmaske" in html[:500]:
+            # Check for session expiry: server sends back the search form
+            # instead of results. The results page has "Suchergebnis" table;
+            # the search form has "Detailsuche starten" submit button.
+            has_results = 'aria-label="Suchergebnis"' in html
+            is_search_form = "Detailsuche starten" in html and not has_results
+            if is_search_form:
                 if reinit_session_fn and attempt < max_retries:
                     logger.warning("Session expired, re-initializing...")
                     jsessionid = reinit_session_fn(session)
@@ -165,9 +169,12 @@ def fetch_with_retry(
 def reinit_and_search(session) -> str:
     """Re-initialize session and re-submit the wildcard search.
 
+    Clears existing cookies first so the server issues a fresh jsessionid.
     Returns new jsessionid.
     """
+    session.cookies.clear()
     jsessionid = _init_session(session)
+    logger.info("New session ID: %s", jsessionid[:8] + "...")
     _submit_search(session, "%", jsessionid)
     return jsessionid
 
@@ -222,8 +229,11 @@ def main(reset: bool, status: bool, batch_size: int, delay: float) -> None:
             f"({loaded:,} loaded, {failed:,} failed)[/green]"
         )
 
-    # Connect to database
+    # Connect to database and resync sequence to avoid primary key conflicts
     conn = get_connection()
+    max_id = conn.execute("SELECT COALESCE(MAX(id), 0) FROM grant_award").fetchone()[0]
+    conn.execute(f"DROP SEQUENCE IF EXISTS seq_grant; CREATE SEQUENCE seq_grant START {max_id + 1}")
+    logger.info("Grant sequence reset to %d", max_id + 1)
 
     # Initialize HTTP session
     console.print("[bold]Initializing Förderkatalog session...[/bold]")
