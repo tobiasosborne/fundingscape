@@ -34,6 +34,7 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
     enriched = _enrich_cordis_from_openaire(conn)
     ec_flagged = _flag_openaire_ec_duplicates(conn)
     api_flagged = _flag_openaire_api_duplicates(conn)
+    gepris_flagged = _flag_gepris_openaire_duplicates(conn)
     within_flagged = _flag_within_source_duplicates(conn)
 
     stats = {
@@ -44,6 +45,7 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
         "enriched": enriched,
         "ec_duplicates_flagged": ec_flagged,
         "api_duplicates_flagged": api_flagged,
+        "gepris_duplicates_flagged": gepris_flagged,
         "within_source_flagged": within_flagged,
     }
     logger.info("Dedup complete: %s", stats)
@@ -247,6 +249,32 @@ def _link_funders(conn: duckdb.DuckDBPyConnection) -> int:
             )
             total += count
 
+    # Link GEPRIS grants to DFG
+    dfg_id = funder_map.get("DFG")
+    if dfg_id:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM grant_award WHERE source = 'gepris' AND funder_id IS NULL"
+        ).fetchone()[0]
+        if count:
+            conn.execute(
+                "UPDATE grant_award SET funder_id = ? WHERE source = 'gepris' AND funder_id IS NULL",
+                [dfg_id],
+            )
+            total += count
+
+    # Link Förderkatalog grants to BMBF
+    bmbf_id = funder_map.get("BMBF")
+    if bmbf_id:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM grant_award WHERE source = 'foerderkatalog' AND funder_id IS NULL"
+        ).fetchone()[0]
+        if count:
+            conn.execute(
+                "UPDATE grant_award SET funder_id = ? WHERE source = 'foerderkatalog' AND funder_id IS NULL",
+                [bmbf_id],
+            )
+            total += count
+
     logger.info("Linked %d grants to funders", total)
     return total
 
@@ -404,6 +432,62 @@ def _flag_openaire_api_duplicates(conn: duckdb.DuckDBPyConnection) -> int:
         "WHERE source = 'openaire' AND dedup_of IS NOT NULL"
     ).fetchone()[0]
     logger.info("Flagged %d OpenAIRE API duplicates of bulk", count)
+    return count
+
+
+def _flag_gepris_openaire_duplicates(conn: duckdb.DuckDBPyConnection) -> int:
+    """Flag OpenAIRE DFG records that duplicate GEPRIS records.
+
+    GEPRIS is canonical for DFG since it has PI names, institutions,
+    and funding amounts that OpenAIRE lacks. Matches by project_id.
+
+    Returns count of flagged records.
+    """
+    # Flag openaire_bulk DFG records
+    conn.execute("""
+        UPDATE grant_award AS o
+        SET dedup_of = (
+            SELECT g.id FROM grant_award g
+            WHERE g.source = 'gepris' AND g.project_id = o.project_id
+            LIMIT 1
+        )
+        WHERE o.source = 'openaire_bulk'
+          AND o.source_id LIKE 'oaire\\_DFG\\_%' ESCAPE '\\'
+          AND o.project_id IS NOT NULL AND o.project_id != ''
+          AND o.dedup_of IS NULL
+          AND EXISTS (
+              SELECT 1 FROM grant_award g
+              WHERE g.source = 'gepris' AND g.project_id = o.project_id
+          )
+    """)
+
+    # Flag openaire API DFG records
+    conn.execute("""
+        UPDATE grant_award AS o
+        SET dedup_of = (
+            SELECT g.id FROM grant_award g
+            WHERE g.source = 'gepris' AND g.project_id = o.project_id
+            LIMIT 1
+        )
+        WHERE o.source = 'openaire'
+          AND o.source_id LIKE 'openaire\\_DFG\\_%' ESCAPE '\\'
+          AND o.project_id IS NOT NULL AND o.project_id != ''
+          AND o.dedup_of IS NULL
+          AND EXISTS (
+              SELECT 1 FROM grant_award g
+              WHERE g.source = 'gepris' AND g.project_id = o.project_id
+          )
+    """)
+
+    count = conn.execute("""
+        SELECT COUNT(*) FROM grant_award
+        WHERE dedup_of IS NOT NULL
+          AND (
+              (source = 'openaire_bulk' AND source_id LIKE 'oaire\\_DFG\\_%' ESCAPE '\\')
+              OR (source = 'openaire' AND source_id LIKE 'openaire\\_DFG\\_%' ESCAPE '\\')
+          )
+    """).fetchone()[0]
+    logger.info("Flagged %d OpenAIRE DFG duplicates of GEPRIS", count)
     return count
 
 

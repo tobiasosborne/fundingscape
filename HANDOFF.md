@@ -12,44 +12,27 @@ Built a complete research funding intelligence system from scratch, then hardene
 6. **Phase 5**: Set up git, GitHub repo, Apache license, beads issue tracker with 27 issues
 7. **Phase 6**: Cross-source deduplication — 54,301 OpenAIRE↔CORDIS duplicates flagged via soft `dedup_of` column
 8. **Phase 7**: Data integrity fixes — date anomalies (4,433), country codes (7,476), currency codes (6,367), funder linkage (3.69M grants → 35 funders)
+9. **Phase 8**: DFG GEPRIS scraper — updated selectors for current site, pagination support, wired into pipeline with GEPRIS↔OpenAIRE dedup
+10. **Phase 9**: BMBF Förderkatalog scraper — reverse-engineered JSP form-based search, POST pagination, 286 quantum projects (€420M)
 
-Final state: **3,657,348 unique grants** (3,711,657 total, 54,309 duplicates flagged), **7,194 calls**, **111 tests**, **471 MB database**.
+Final state: **3,657,348+ unique grants**, **7,194 calls**, **167 tests**, **~475 MB database**.
 
 ---
 
 ## Immediate Next Steps (High Impact, Low Effort)
 
-### 1. Run DFG GEPRIS Scraper
-**Issue**: `datapipeline-29h`
-**Effort**: 30 minutes (scraper is already built)
-**Impact**: Fills the biggest German gap — adds ~200K DFG projects with PI names, institutions, and funding schemes
+### ~~1. Run DFG GEPRIS Scraper~~ DONE (Phase 8)
+Scraper updated with current GEPRIS selectors (`div.results h2 a`, `h1.facelift`, `span.name`), pagination via `hitsPerPage`/`index` params, 22 tests. Wired into `update.py` with GEPRIS↔OpenAIRE DFG dedup in `dedup.py`. Run with `max_detail_pages=N` to control scope.
 
-The scraper exists at `src/fundingscape/sources/gepris.py`. It just needs to be run against the live site. Be respectful with rate limiting (2.5s between requests). Start with quantum keywords, then expand.
+### ~~2. BMBF Förderkatalog~~ DONE (Phase 9)
+Full scraper at `src/fundingscape/sources/foerderkatalog.py`. Reverse-engineered JSP POST form: session init, search with `suche.themaSuche[0]`, pagination via `suche.listrowfrom`/`suche.listrowpersite`. Search results table contains most fields (no detail pages needed). 286 quantum projects, €420M. 34 tests. No bulk export exists — scraping is the only option.
 
-```bash
-uv run python3 -c "
-from fundingscape.db import get_connection
-from fundingscape.sources.gepris import fetch_and_load
-conn = get_connection()
-fetch_and_load(conn, max_detail_pages=500)
-conn.close()
-"
-```
+### 1. Expand GEPRIS Detail Fetching
+The GEPRIS scraper currently loads only 5 detail pages (from live test). Run with higher `max_detail_pages` to get PI names, institutions, funding amounts for more DFG projects. Cross-reference with OpenAIRE DFG records to enrich missing amounts.
 
-**Note**: DFG GEPRIS has no official API. The scraper uses BeautifulSoup to parse HTML. Page structure may change — staleness detection tests should be added.
-
-### 2. BMBF Förderkatalog
-**Issue**: `datapipeline-am7`
-**Effort**: 2-3 hours
-**Impact**: 110K+ German federal research projects
-
-The site was under maintenance until Feb 23, 2026. A scraper skeleton exists at `src/fundingscape/sources/foerderkatalog.py` (placeholder). The site uses JSP with form-based POST requests. The research agent noted it may have a bulk XML export — investigate first before building a scraper.
-
-Key URL: `https://foerderportal.bund.de/foekat/jsp/SucheAction.do?actionMode=searchmask`
-
-### 3. Fix DFG Funding Amounts
+### 2. Fix DFG Funding Amounts
 **Current issue**: OpenAIRE has 32,198 DFG grants but most show €0 funding. The DFG doesn't report funding amounts to OpenAIRE. Two options:
-- Scrape amounts from GEPRIS detail pages (per step 1)
+- Scrape amounts from GEPRIS detail pages (expand step 1)
 - Cross-reference GEPRIS data with OpenAIRE by project code to enrich records
 
 ### 4. ERC PI-Specific Download

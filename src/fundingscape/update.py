@@ -7,7 +7,7 @@ import sys
 
 from fundingscape.db import get_connection, _seed_funders, _seed_profiles
 from fundingscape.dedup import run_dedup
-from fundingscape.sources import cordis, ft_portal, manual, openaire
+from fundingscape.sources import cordis, ft_portal, manual, openaire, gepris, foerderkatalog
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,7 +56,23 @@ def run_update() -> None:
     except Exception as e:
         logger.error("OpenAIRE failed: %s", e)
 
-    # 5. Cross-source deduplication
+    # 5. DFG GEPRIS (German research grants)
+    logger.info("--- DFG GEPRIS ---")
+    try:
+        total = gepris.fetch_and_load(conn)
+        logger.info("GEPRIS: loaded %d grants", total)
+    except Exception as e:
+        logger.error("GEPRIS failed: %s", e)
+
+    # 6. BMBF Förderkatalog (German federal research projects)
+    logger.info("--- BMBF Förderkatalog ---")
+    try:
+        total = foerderkatalog.fetch_and_load(conn)
+        logger.info("Förderkatalog: loaded %d grants", total)
+    except Exception as e:
+        logger.error("Förderkatalog failed: %s", e)
+
+    # 7. Cross-source deduplication
     logger.info("--- Deduplication ---")
     try:
         stats = run_dedup(conn)

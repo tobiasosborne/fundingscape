@@ -39,53 +39,74 @@ QUANTUM_KEYWORDS = [
 def _search_projects(
     client: CachedHttpClient,
     keyword: str,
-    max_results: int = 500,
+    hits_per_page: int = 50,
+    max_pages: int = 20,
 ) -> list[dict]:
     """Search GEPRIS for projects matching a keyword.
 
-    Returns list of {id, title, institution, funding_programme} dicts.
+    Paginates through results using hitsPerPage and index parameters.
+    Returns list of {id, title} dicts.
     """
-    url = (
-        f"{SEARCH_URL}?task=doSearchSimple&context=projekt"
-        f"&keywords_criterion={keyword}"
-        f"&results_per_page={max_results}"
-        f"&language=en"
-    )
+    all_results = []
+    index = 0
 
-    try:
-        html = client.fetch_text(url)
-    except Exception as e:
-        logger.error("GEPRIS search failed for '%s': %s", keyword, e)
-        return []
+    while True:
+        if index == 0:
+            url = (
+                f"{SEARCH_URL}?task=doSearchSimple&context=projekt"
+                f"&keywords_criterion={keyword}"
+                f"&hitsPerPage={hits_per_page}"
+                f"&language=en"
+            )
+        else:
+            url = (
+                f"{SEARCH_URL}?context=projekt"
+                f"&findButton=historyCall"
+                f"&keywords_criterion={keyword}"
+                f"&hitsPerPage={hits_per_page}"
+                f"&index={index}"
+                f"&language=en"
+            )
 
-    soup = BeautifulSoup(html, "lxml")
-    results = []
+        try:
+            html = client.fetch_text(url)
+        except Exception as e:
+            logger.error("GEPRIS search failed for '%s' at index %d: %s", keyword, index, e)
+            break
 
-    # Parse search results - each project is in a div with class "result_item"
-    for item in soup.select(".result_item, .resultContainer .results .item, #liste .details"):
-        link = item.select_one("a[href*='/gepris/projekt/']")
-        if not link:
-            continue
+        soup = BeautifulSoup(html, "html.parser")
+        page_results = []
 
-        href = link.get("href", "")
-        match = re.search(r"/gepris/projekt/(\d+)", href)
-        if not match:
-            continue
+        # Parse search results — each project is in a div.results > h2 > a
+        for item in soup.select("div.results"):
+            link = item.select_one("h2 a[href*='/gepris/projekt/']")
+            if not link:
+                continue
 
-        project_id = match.group(1)
-        title = link.get_text(strip=True)
+            href = link.get("href", "")
+            match = re.search(r"/gepris/projekt/(\d+)", href)
+            if not match:
+                continue
 
-        # Try to get institution and programme from surrounding text
-        text_parts = item.get_text(separator="|", strip=True).split("|")
+            project_id = match.group(1)
+            # Strip image alt text from title
+            title = link.get_text(strip=True)
 
-        results.append({
-            "id": project_id,
-            "title": title,
-            "text_parts": text_parts,
-        })
+            page_results.append({
+                "id": project_id,
+                "title": title,
+            })
 
-    logger.info("GEPRIS search '%s': found %d results", keyword, len(results))
-    return results
+        all_results.extend(page_results)
+
+        # Stop if no results on this page or we've hit max pages
+        if len(page_results) < hits_per_page or len(all_results) // hits_per_page >= max_pages:
+            break
+
+        index += hits_per_page
+
+    logger.info("GEPRIS search '%s': found %d results", keyword, len(all_results))
+    return all_results
 
 
 def _fetch_project_detail(
@@ -101,32 +122,40 @@ def _fetch_project_detail(
         logger.warning("Failed to fetch GEPRIS project %s: %s", project_id, e)
         return None
 
-    soup = BeautifulSoup(html, "lxml")
+    soup = BeautifulSoup(html, "html.parser")
 
-    # Extract title
-    title_el = soup.select_one("h1, .detail_head h3, #detailseite h1")
+    # Extract title — h1.facelift is the project title on GEPRIS detail pages.
+    # Try most specific selector first, then fall back.
+    title_el = (
+        soup.select_one("h1.facelift")
+        or soup.select_one("#detailseite h1:not(.hidden)")
+        or soup.select_one(".detail_head h3")
+    )
     title = title_el.get_text(strip=True) if title_el else f"GEPRIS Project {project_id}"
 
-    # Extract details from the detail table
+    # Extract details — GEPRIS uses <span class="name"> / sibling pairs
     details: dict[str, str] = {}
-    for row in soup.select(".detail_content .intern dt, .detail_content dt"):
-        key = row.get_text(strip=True).rstrip(":")
-        dd = row.find_next_sibling("dd")
-        if dd:
-            details[key] = dd.get_text(strip=True)
-
-    # Also try <span class="name"> pattern
     for span in soup.select("span.name"):
         key = span.get_text(strip=True).rstrip(":")
         value_el = span.find_next_sibling()
         if value_el:
             details[key] = value_el.get_text(strip=True)
 
-    # Extract abstract/description
+    # Also try dt/dd pattern (older GEPRIS pages)
+    for row in soup.select(".detail_content .intern dt, .detail_content dt"):
+        key = row.get_text(strip=True).rstrip(":")
+        dd = row.find_next_sibling("dd")
+        if dd and key not in details:
+            details[key] = dd.get_text(strip=True)
+
+    # Extract abstract/description from content_frame
     abstract = None
-    for section in soup.select(".abstract, #projektbeschreibung, .description"):
-        abstract = section.get_text(strip=True)
-        break
+    for section in soup.select(".content_frame, .abstract, #projektbeschreibung, .description"):
+        text = section.get_text(strip=True)
+        # Skip very short sections (nav labels, tab headers)
+        if len(text) > 50:
+            abstract = text
+            break
 
     # Parse funding amount
     total_funding = None
@@ -140,11 +169,29 @@ def _fetch_project_detail(
                 except ValueError:
                     pass
 
-    # Parse PI name
-    pi_name = details.get("Applicant", details.get("Spokesperson", details.get("Antragsteller")))
+    # Parse PI name — try multiple field names
+    pi_name = (
+        details.get("Applicant")
+        or details.get("Spokesperson")
+        or details.get("Spokespersons")
+        or details.get("Antragsteller")
+        or details.get("Sprecher")
+    )
+    # Clean up "since/until" annotations from spokesperson fields
+    if pi_name and ";" in pi_name:
+        pi_name = pi_name.split(";")[0].strip()
+    if pi_name and ", since " in pi_name:
+        pi_name = pi_name.split(", since ")[0].strip()
+    if pi_name and ", until " in pi_name:
+        pi_name = pi_name.split(", until ")[0].strip()
 
-    # Parse institution
-    institution = details.get("Institution", details.get("Einrichtung"))
+    # Parse institution — try multiple field names
+    institution = (
+        details.get("Applicant Institution")
+        or details.get("Institution")
+        or details.get("Einrichtung")
+        or details.get("Antragstellende Institution")
+    )
 
     # Parse dates
     term = details.get("Term", details.get("Förderung", ""))
