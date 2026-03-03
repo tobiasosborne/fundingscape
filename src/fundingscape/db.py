@@ -147,6 +147,10 @@ def create_tables(conn: duckdb.DuckDBPyConnection) -> None:
         conn.execute("ALTER TABLE grant_award ADD COLUMN funder_id INTEGER")
     if "is_aggregate" not in cols:
         conn.execute("ALTER TABLE grant_award ADD COLUMN is_aggregate BOOLEAN DEFAULT FALSE")
+    if "total_funding_estimated" not in cols:
+        conn.execute("ALTER TABLE grant_award ADD COLUMN total_funding_estimated DOUBLE")
+    if "funding_estimate_method" not in cols:
+        conn.execute("ALTER TABLE grant_award ADD COLUMN funding_estimate_method TEXT")
 
     # Indexes for dedup matching
     conn.execute("""

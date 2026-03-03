@@ -18,6 +18,8 @@ from fundingscape.dedup import (
     _flag_openaire_api_duplicates,
     _flag_within_source_duplicates,
     _flag_aggregate_records,
+    _estimate_gepris_funding,
+    _extract_programme_type,
 )
 from fundingscape.models import GrantAward
 
@@ -562,6 +564,78 @@ class TestFlagAggregateRecords:
         deduped = db.execute("SELECT COUNT(*) FROM grant_award_deduped").fetchone()[0]
         assert total == 2
         assert deduped == 1  # Only the normal grant
+
+
+class TestExtractProgrammeType:
+    def test_research_grants(self):
+        abstract = "Some text hereDFG ProgrammeResearch GrantsSubject AreaAtmospheric Science"
+        assert _extract_programme_type(abstract) == "Research Grants"
+
+    def test_emmy_noether(self):
+        abstract = "DescriptionDFG ProgrammeEmmy Noether Independent Junior Research GroupsTerm from 2020"
+        assert _extract_programme_type(abstract) == "Emmy Noether Independent Junior Research Groups"
+
+    def test_sfb(self):
+        abstract = "TextDFG ProgrammeCollaborative Research CentresSubproject ofSFB 999"
+        assert _extract_programme_type(abstract) == "Collaborative Research Centres"
+
+    def test_no_programme(self):
+        assert _extract_programme_type("No programme info here") is None
+
+    def test_none_abstract(self):
+        assert _extract_programme_type(None) is None
+
+
+class TestEstimateGeprisFunding:
+    def test_estimates_research_grant(self, db):
+        """GEPRIS record with Research Grants programme gets estimated funding."""
+        _gepris_grant(db, "EST001")
+        db.execute("""
+            UPDATE grant_award
+            SET abstract = 'TextDFG ProgrammeResearch GrantsSubject AreaMath',
+                start_date = '2020-01-01', end_date = '2022-12-31',
+                total_funding = NULL
+            WHERE project_id = 'EST001'
+        """)
+        count = _estimate_gepris_funding(db)
+        assert count == 1
+        row = db.execute("""
+            SELECT total_funding_estimated, funding_estimate_method
+            FROM grant_award WHERE project_id = 'EST001'
+        """).fetchone()
+        assert row[0] is not None
+        assert row[0] > 0
+        assert row[1] == "programme_type"
+
+    def test_does_not_overwrite_actual_funding(self, db):
+        """Records with actual funding are not estimated."""
+        _gepris_grant(db, "EST002")
+        db.execute("""
+            UPDATE grant_award
+            SET abstract = 'TextDFG ProgrammeResearch GrantsSubject AreaMath',
+                start_date = '2020-01-01', end_date = '2022-12-31',
+                total_funding = 500000
+            WHERE project_id = 'EST002'
+        """)
+        count = _estimate_gepris_funding(db)
+        assert count == 0
+
+    def test_uses_default_duration_when_no_dates(self, db):
+        """Records without dates use 3-year default duration."""
+        _gepris_grant(db, "EST003")
+        db.execute("""
+            UPDATE grant_award
+            SET abstract = 'TextDFG ProgrammeResearch GrantsSubject AreaMath',
+                start_date = NULL, end_date = NULL,
+                total_funding = NULL
+            WHERE project_id = 'EST003'
+        """)
+        _estimate_gepris_funding(db)
+        row = db.execute(
+            "SELECT total_funding_estimated FROM grant_award WHERE project_id = 'EST003'"
+        ).fetchone()
+        # 80,000/yr * 3 years = 240,000
+        assert row[0] == 240_000.0
 
 
 class TestRunDedup:

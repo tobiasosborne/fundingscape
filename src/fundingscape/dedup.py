@@ -13,6 +13,7 @@ Canonical priority:
 from __future__ import annotations
 
 import logging
+import re
 
 import duckdb
 
@@ -40,6 +41,7 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
     gepris_flagged = _flag_gepris_openaire_duplicates(conn)
     within_flagged = _flag_within_source_duplicates(conn)
     aggregates_flagged = _flag_aggregate_records(conn)
+    funding_estimated = _estimate_gepris_funding(conn)
 
     stats = {
         "dates_fixed": dates_fixed,
@@ -55,6 +57,7 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
         "gepris_duplicates_flagged": gepris_flagged,
         "within_source_flagged": within_flagged,
         "aggregates_flagged": aggregates_flagged,
+        "funding_estimated": funding_estimated,
     }
     logger.info("Dedup complete: %s", stats)
     return stats
@@ -745,3 +748,111 @@ def _flag_aggregate_records(conn: duckdb.DuckDBPyConnection) -> int:
     ).fetchone()[0]
     logger.info("Flagged %d aggregate/correction records", count)
     return count
+
+
+# DFG programme type → typical annual funding in EUR.
+# Sources: DFG funding guidelines, annual reports, typical grant sizes.
+# These are rough averages — individual grants vary widely.
+_DFG_PROGRAMME_FUNDING_PER_YEAR = {
+    "Research Grants": 80_000,             # Sachbeihilfe: ~200-400K over 3 years
+    "Research Fellowships": 70_000,        # ~140K over 2 years
+    "Fellowship": 70_000,                  # Same as above
+    "Emmy Noether": 250_000,              # ~1.5M over 6 years
+    "Heisenberg": 150_000,                # Professorship funding ~150K/yr
+    "Priority Programmes": 100_000,        # SPP subprojects: ~200-400K over 3 years
+    "Research Units": 100_000,             # FOR subprojects: similar to SPP
+    "Collaborative Research Centres": 200_000,  # SFB subprojects: ~800K over 4 years
+    "CRC/Transregios": 200_000,           # Same as SFB
+    "Research Training Groups": 300_000,   # GRK: ~3-5M over 4.5 years, shared
+    "Clinical Research Units": 150_000,    # KFO subprojects
+    "Clusters of Excellence": 1_500_000,   # EXC: ~5-40M over 7 years (highly variable)
+    "International Research Training Groups": 300_000,  # IRTG
+    "Major Research Instrumentation": 300_000,  # Großgeräte: one-time, avg ~300K
+    "DFG Research Centres": 500_000,       # Forschungszentren: ~5M/yr
+    "Graduate Schools": 500_000,           # GSC: ~5M/yr
+    "Publication Grants": 10_000,          # Small, one-time
+    "Scientific Networks": 15_000,         # ~60K over 4 years
+    "Infrastructure Priority Programmes": 100_000,  # Similar to SPP
+    "DIP Programme": 100_000,              # German-Israeli projects
+    "Advanced Studies Centres in SSH": 100_000,  # Kolleg-Forschungsgruppe
+}
+
+# Default for unrecognized programme types
+_DFG_DEFAULT_FUNDING_PER_YEAR = 80_000  # Conservative estimate
+
+
+def _extract_programme_type(abstract: str | None) -> str | None:
+    """Extract DFG programme type from GEPRIS abstract text."""
+    if not abstract:
+        return None
+    m = re.search(
+        r"DFG Programme\s*(.+?)(?:Subject Area|Subproject of|Participating|"
+        r"Term |International Connection|Applicant|Spokesperson|Major|"
+        r"Project Identifier|Co-Applicant|Further|Instrumentation Group)",
+        abstract,
+    )
+    if m:
+        prog = m.group(1).strip()
+        # Clean up compound entries like "Research GrantsParticipating..."
+        prog = re.sub(r"(Grants|Programmes|Centres|Units|Groups|Schools|Fellowships).*", r"\1", prog)
+        return prog
+    return None
+
+
+def _estimate_gepris_funding(conn: duckdb.DuckDBPyConnection) -> int:
+    """Estimate funding for GEPRIS records that have no reported total_funding.
+
+    Uses DFG programme type (extracted from abstract) and grant duration to
+    calculate: estimated_amount = annual_rate * duration_years.
+
+    Only fills total_funding_estimated — never overwrites total_funding.
+    Sets funding_estimate_method to 'programme_type' for traceability.
+
+    Returns count of estimated records.
+    """
+    # Clear previous estimates (idempotent)
+    conn.execute("""
+        UPDATE grant_award
+        SET total_funding_estimated = NULL, funding_estimate_method = NULL
+        WHERE source = 'gepris' AND funding_estimate_method IS NOT NULL
+    """)
+
+    # Fetch GEPRIS records with no funding but with abstract and dates
+    rows = conn.execute("""
+        SELECT id, abstract, start_date, end_date
+        FROM grant_award
+        WHERE source = 'gepris'
+          AND (total_funding IS NULL OR total_funding = 0)
+          AND abstract IS NOT NULL
+    """).fetchall()
+
+    updates = []
+    for row_id, abstract, start_date, end_date in rows:
+        prog = _extract_programme_type(abstract)
+        if not prog:
+            continue
+
+        annual_rate = _DFG_PROGRAMME_FUNDING_PER_YEAR.get(
+            prog, _DFG_DEFAULT_FUNDING_PER_YEAR
+        )
+
+        if start_date and end_date:
+            duration = (end_date - start_date).days / 365.25
+            duration = max(duration, 1.0)  # At least 1 year
+        else:
+            duration = 3.0  # Default assumption: 3-year grant
+
+        estimated = annual_rate * duration
+        updates.append((estimated, row_id))
+
+    # Batch update
+    if updates:
+        conn.executemany(
+            "UPDATE grant_award "
+            "SET total_funding_estimated = ?, funding_estimate_method = 'programme_type' "
+            "WHERE id = ?",
+            updates,
+        )
+
+    logger.info("Estimated funding for %d GEPRIS records", len(updates))
+    return len(updates)
