@@ -44,6 +44,7 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
     within_flagged = _flag_within_source_duplicates(conn)
     aggregates_flagged = _flag_aggregate_records(conn)
     funding_estimated = _estimate_gepris_funding(conn)
+    ror_matched = _match_ror_institutions(conn)
 
     stats = {
         "dates_fixed": dates_fixed,
@@ -61,6 +62,7 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
         "within_source_flagged": within_flagged,
         "aggregates_flagged": aggregates_flagged,
         "funding_estimated": funding_estimated,
+        "ror_matched": ror_matched,
     }
     logger.info("Dedup complete: %s", stats)
     return stats
@@ -944,3 +946,87 @@ def _estimate_gepris_funding(conn: duckdb.DuckDBPyConnection) -> int:
 
     logger.info("Estimated funding for %d GEPRIS records", len(updates))
     return len(updates)
+
+
+_ROR_DATA_PATH = Path("data/cache/ror/ror-data.json")
+
+
+def _match_ror_institutions(conn: duckdb.DuckDBPyConnection) -> int:
+    """Match pi_institution values to ROR IDs.
+
+    Uses the ROR data dump with exact + fuzzy matching. Only processes
+    records that have pi_institution set but no ror_id yet.
+
+    Returns count of matched records.
+    """
+    if not _ROR_DATA_PATH.exists():
+        logger.info("ROR data not found at %s — skipping", _ROR_DATA_PATH)
+        return 0
+
+    from fundingscape.ror import build_ror_index
+
+    index = build_ror_index(_ROR_DATA_PATH)
+
+    # Get distinct institution names needing matching
+    # Prioritize CORDIS and GEPRIS (clean names), then Förderkatalog
+    rows = conn.execute("""
+        SELECT DISTINCT pi_institution, source FROM grant_award
+        WHERE pi_institution IS NOT NULL AND pi_institution != ''
+          AND (ror_id IS NULL OR ror_id = '')
+    """).fetchall()
+
+    names = [r[0] for r in rows]
+    # Track which names come from high-priority sources (for fuzzy pass)
+    high_priority_names = {r[0] for r in rows if r[1] in ('cordis_bulk', 'gepris')}
+    if not names:
+        logger.info("No institutions need ROR matching")
+        return 0
+
+    logger.info("Matching %d unique institution names to ROR", len(names))
+
+    # Pass 1: Exact matches (fast — just dict lookups)
+    matches: dict[str, str] = {}
+    unmatched: list[str] = []
+    for name in names:
+        result = index.match_exact(name)
+        if result:
+            matches[name] = result["ror_id"]
+        else:
+            unmatched.append(name)
+
+    logger.info("Pass 1 (exact): %d matched, %d unmatched", len(matches), len(unmatched))
+
+    # Pass 2: Fuzzy matches for high-priority sources only (CORDIS + GEPRIS)
+    # Förderkatalog has 75K department-level names that are too granular for ROR
+    fuzzy_candidates = [n for n in unmatched if n in high_priority_names and len(n) < 120]
+    logger.info("Pass 2 (fuzzy): trying %d high-priority names (skipping %d Förderkatalog/long)",
+                len(fuzzy_candidates), len(unmatched) - len(fuzzy_candidates))
+    for i, name in enumerate(fuzzy_candidates):
+        result = index.match(name, score_cutoff=90)
+        if result:
+            matches[name] = result["ror_id"]
+        if (i + 1) % 1000 == 0:
+            logger.info("  Fuzzy progress: %d / %d", i + 1, len(fuzzy_candidates))
+
+    logger.info("Matched %d / %d institution names (%.1f%%)",
+                len(matches), len(names), len(matches) / len(names) * 100 if names else 0)
+
+    # Batch update
+    if matches:
+        conn.execute("CREATE TEMP TABLE IF NOT EXISTS ror_match (inst TEXT, ror_id TEXT)")
+        conn.execute("DELETE FROM ror_match")
+        conn.executemany("INSERT INTO ror_match VALUES (?, ?)", list(matches.items()))
+        conn.execute("""
+            UPDATE grant_award AS g
+            SET ror_id = m.ror_id
+            FROM ror_match AS m
+            WHERE g.pi_institution = m.inst
+              AND (g.ror_id IS NULL OR g.ror_id = '')
+        """)
+        conn.execute("DROP TABLE IF EXISTS ror_match")
+
+    count = conn.execute(
+        "SELECT COUNT(*) FROM grant_award WHERE ror_id IS NOT NULL AND ror_id != ''"
+    ).fetchone()[0]
+    logger.info("Total records with ROR ID: %d", count)
+    return count

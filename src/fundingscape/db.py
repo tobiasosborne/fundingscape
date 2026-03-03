@@ -151,6 +151,8 @@ def create_tables(conn: duckdb.DuckDBPyConnection) -> None:
         conn.execute("ALTER TABLE grant_award ADD COLUMN total_funding_estimated DOUBLE")
     if "funding_estimate_method" not in cols:
         conn.execute("ALTER TABLE grant_award ADD COLUMN funding_estimate_method TEXT")
+    if "ror_id" not in cols:
+        conn.execute("ALTER TABLE grant_award ADD COLUMN ror_id TEXT")
 
     # Indexes for dedup matching
     conn.execute("""

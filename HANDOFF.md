@@ -18,7 +18,8 @@ Built a complete research funding intelligence system from scratch, then hardene
 12. **Phase 11**: Completed bulk scrapes — fixed GEPRIS session cookies, pagination params, and total-count extraction; ran both scrapers to completion
 13. **Phase 12**: Data normalization — PI names (106K cleaned), institution names (59K normalized), pi_country="EU" nulled (115K), funder linkage (420K), GEPRIS↔OpenAIRE dedup (31K), aggregate records flagged (210)
 14. **Phase 13**: DFG funding estimation — extracted programme types from GEPRIS abstracts, built lookup table of typical annual rates by programme type, estimated funding for 86,626 records (~64.6B EUR total). Added `total_funding_estimated` and `funding_estimate_method` columns.
-15. **Phase 14**: PI and institution enrichment — downloaded H2020 ERC PI XLSX (7,811 PI names added to CORDIS records); expanded GEPRIS institution parser to extract from "Host", "Co-Applicant Institution", "Participating Institution", "Partner Organisation" fields (8,817 additional institutions, 20.3% → 26.1% coverage)
+15. **Phase 14**: PI and institution enrichment — downloaded H2020 ERC PI XLSX (7,811 PI names added to CORDIS records); expanded GEPRIS institution parser to extract from "Host", "Co-Applicant Institution", etc. (8,817 additional institutions)
+16. **Phase 15**: ROR integration — downloaded ROR v2.2 data dump (121,920 organizations), built offline matching index with exact + fuzzy (RapidFuzz) matching, matched 2,659 unique institution names → 80,780 grant records with canonical `ror_id`. Built GEPRIS person page scraper and Förderkatalog detail page scraper (ready to run).
 
 Final state: **4,046,972 unique grants** (4,132,533 total, 85,351 deduped, 210 aggregates), **7,194 calls**, **195 tests**, **~1,340 MB database**.
 
