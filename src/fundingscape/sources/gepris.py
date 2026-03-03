@@ -185,12 +185,17 @@ def _fetch_project_detail(
     if pi_name and ", until " in pi_name:
         pi_name = pi_name.split(", until ")[0].strip()
 
-    # Parse institution — try multiple field names
+    # Parse institution — try multiple field names (in priority order)
     institution = (
         details.get("Applicant Institution")
         or details.get("Institution")
         or details.get("Einrichtung")
         or details.get("Antragstellende Institution")
+        or details.get("Co-Applicant Institution")
+        or details.get("Host")
+        or details.get("Participating Institution")
+        or details.get("Participating University")
+        or details.get("Partner Organisation")
     )
 
     # Parse dates

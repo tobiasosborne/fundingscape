@@ -18,6 +18,7 @@ Built a complete research funding intelligence system from scratch, then hardene
 12. **Phase 11**: Completed bulk scrapes — fixed GEPRIS session cookies, pagination params, and total-count extraction; ran both scrapers to completion
 13. **Phase 12**: Data normalization — PI names (106K cleaned), institution names (59K normalized), pi_country="EU" nulled (115K), funder linkage (420K), GEPRIS↔OpenAIRE dedup (31K), aggregate records flagged (210)
 14. **Phase 13**: DFG funding estimation — extracted programme types from GEPRIS abstracts, built lookup table of typical annual rates by programme type, estimated funding for 86,626 records (~64.6B EUR total). Added `total_funding_estimated` and `funding_estimate_method` columns.
+15. **Phase 14**: PI and institution enrichment — downloaded H2020 ERC PI XLSX (7,811 PI names added to CORDIS records); expanded GEPRIS institution parser to extract from "Host", "Co-Applicant Institution", "Participating Institution", "Partner Organisation" fields (8,817 additional institutions, 20.3% → 26.1% coverage)
 
 Final state: **4,046,972 unique grants** (4,132,533 total, 85,351 deduped, 210 aggregates), **7,194 calls**, **195 tests**, **~1,340 MB database**.
 
@@ -37,15 +38,11 @@ Full scraper at `src/fundingscape/sources/foerderkatalog.py`. Reverse-engineered
 ### ~~2. Run GEPRIS Bulk Scrape~~ DONE (Phase 11)
 **Result**: 152,712 projects loaded (152,707 cached, 5 failures). 106,462 with PI names, 30,985 with institutions, all with titles. Three bugs fixed in `scrape_gepris.py`: session cookie persistence (JSESSIONID), missing `task=doKatalog` pagination parameter, and total-count extraction from pagination links.
 
-### 3. DFG Funding Amounts
-**Current issue**: DFG does not publish per-project funding amounts on GEPRIS (confirmed by checking individual grants, Kaggle snapshots, and third-party crawlers). Options: (a) estimate by programme type, (b) scrape DFG press releases, (c) use DFG Förderatlas aggregate data, (d) contact DFG directly.
+### ~~3. DFG Funding Amounts~~ DONE (Phase 13)
+**Result**: DFG does not publish per-project funding amounts on GEPRIS. Estimated 86,626 records using programme-type lookup table (22 programme types with typical annual rates). Values stored in `total_funding_estimated` column with `funding_estimate_method='programme_type'` for traceability.
 
-### 4. ERC PI-Specific Download
-**Issue**: `datapipeline-bvx`
-**Effort**: 30 minutes
-**Impact**: PI names for all H2020 ERC grants, enabling panel-level success rate analysis
-
-Download `https://cordis.europa.eu/data/cordis-h2020-erc-pi.xlsx` and parse. This gives PI names, panels (PE2 for physics), and institutions for every ERC grant in H2020.
+### ~~4. ERC PI-Specific Download~~ DONE (Phase 14)
+**Result**: Downloaded `cordis-h2020-erc-pi.xlsx`, parsed 7,811 unique ERC PIs, matched and enriched all CORDIS H2020 ERC grant records with PI names. Cached at `data/cache/cordis/cordis-h2020-erc-pi.xlsx`, auto-downloaded by `run_dedup()`.
 
 ---
 

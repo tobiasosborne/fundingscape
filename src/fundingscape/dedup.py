@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import re
+from pathlib import Path
 
 import duckdb
 
@@ -36,6 +37,7 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
     institutions_fixed = _normalize_institutions(conn)
     funders_linked = _link_funders(conn)
     enriched = _enrich_cordis_from_openaire(conn)
+    erc_pis = _enrich_cordis_erc_pis(conn)
     ec_flagged = _flag_openaire_ec_duplicates(conn)
     api_flagged = _flag_openaire_api_duplicates(conn)
     gepris_flagged = _flag_gepris_openaire_duplicates(conn)
@@ -52,6 +54,7 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
         "institutions_fixed": institutions_fixed,
         "funders_linked": funders_linked,
         "enriched": enriched,
+        "erc_pis_enriched": erc_pis,
         "ec_duplicates_flagged": ec_flagged,
         "api_duplicates_flagged": api_flagged,
         "gepris_duplicates_flagged": gepris_flagged,
@@ -509,6 +512,91 @@ def _enrich_cordis_from_openaire(conn: duckdb.DuckDBPyConnection) -> int:
           AND (c.total_funding IS NULL OR c.pi_country IS NULL)
     """)
     logger.info("Enriched %d CORDIS records from OpenAIRE", count)
+    return count
+
+
+_ERC_PI_URL = "https://cordis.europa.eu/data/cordis-h2020-erc-pi.xlsx"
+_ERC_PI_CACHE = Path("data/cache/cordis/cordis-h2020-erc-pi.xlsx")
+
+
+def _enrich_cordis_erc_pis(conn: duckdb.DuckDBPyConnection) -> int:
+    """Enrich CORDIS records with PI names from the H2020 ERC PI dataset.
+
+    Downloads the ERC PI XLSX from CORDIS (cached locally), parses it,
+    and updates pi_name for matching CORDIS records that lack PI names.
+
+    Returns count of enriched records.
+    """
+    # Download if not cached
+    cache_path = _ERC_PI_CACHE
+    if not cache_path.exists():
+        try:
+            import httpx
+
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            resp = httpx.get(_ERC_PI_URL, follow_redirects=True, timeout=60.0)
+            resp.raise_for_status()
+            cache_path.write_bytes(resp.content)
+            logger.info("Downloaded ERC PI data: %d bytes", len(resp.content))
+        except Exception as e:
+            logger.warning("Could not download ERC PI data: %s", e)
+            return 0
+
+    # Parse XLSX
+    try:
+        import openpyxl
+
+        wb = openpyxl.load_workbook(str(cache_path), read_only=True)
+        ws = wb.active
+    except Exception as e:
+        logger.warning("Could not parse ERC PI XLSX: %s", e)
+        return 0
+
+    pi_data = {}
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if len(row) < 7:
+            continue
+        _, project_id, _acronym, _scheme, _title, first_name, last_name = row[:7]
+        if project_id and first_name and last_name:
+            pid = str(int(project_id))
+            pi_data[pid] = f"{first_name} {last_name}"
+    wb.close()
+
+    if not pi_data:
+        logger.warning("No ERC PI data parsed")
+        return 0
+
+    # Count before
+    before = conn.execute(
+        "SELECT COUNT(*) FROM grant_award "
+        "WHERE source = 'cordis_bulk' AND pi_name IS NOT NULL AND pi_name != ''"
+    ).fetchone()[0]
+
+    # Batch update via temp table for efficiency
+    conn.execute("CREATE TEMP TABLE IF NOT EXISTS erc_pi (project_id TEXT, pi_name TEXT)")
+    conn.execute("DELETE FROM erc_pi")
+    conn.executemany(
+        "INSERT INTO erc_pi VALUES (?, ?)",
+        list(pi_data.items()),
+    )
+    conn.execute("""
+        UPDATE grant_award AS g
+        SET pi_name = e.pi_name
+        FROM erc_pi AS e
+        WHERE g.source = 'cordis_bulk'
+          AND g.project_id = e.project_id
+          AND (g.pi_name IS NULL OR g.pi_name = '')
+    """)
+    conn.execute("DROP TABLE IF EXISTS erc_pi")
+
+    # Count after
+    after = conn.execute(
+        "SELECT COUNT(*) FROM grant_award "
+        "WHERE source = 'cordis_bulk' AND pi_name IS NOT NULL AND pi_name != ''"
+    ).fetchone()[0]
+
+    count = after - before
+    logger.info("Enriched %d CORDIS records with ERC PI names", count)
     return count
 
 

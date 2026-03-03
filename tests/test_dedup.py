@@ -14,6 +14,7 @@ from fundingscape.dedup import (
     _normalize_institutions,
     _link_funders,
     _enrich_cordis_from_openaire,
+    _enrich_cordis_erc_pis,
     _flag_openaire_ec_duplicates,
     _flag_openaire_api_duplicates,
     _flag_within_source_duplicates,
