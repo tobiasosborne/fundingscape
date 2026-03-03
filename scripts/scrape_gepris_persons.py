@@ -171,6 +171,10 @@ def _fetch_person(
             resp.raise_for_status()
             html = resp.text
 
+            # Detect GEPRIS downtime / error pages
+            if "vorübergehend nicht erreichbar" in html or "temporarily unavailable" in html:
+                raise RuntimeError("GEPRIS is temporarily unavailable")
+
             # Cache the response
             os.makedirs(CACHE_SUBDIR, exist_ok=True)
             with open(cache_path, "w", encoding="utf-8") as f:
