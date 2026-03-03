@@ -29,24 +29,32 @@ def run_dedup(conn: duckdb.DuckDBPyConnection) -> dict[str, int]:
 
     dates_fixed = _clean_date_anomalies(conn)
     countries_fixed = _normalize_country_codes(conn)
+    eu_country_fixed = _normalize_pi_country_eu(conn)
     currencies_fixed = _normalize_currency_codes(conn)
+    pi_names_fixed = _normalize_pi_names(conn)
+    institutions_fixed = _normalize_institutions(conn)
     funders_linked = _link_funders(conn)
     enriched = _enrich_cordis_from_openaire(conn)
     ec_flagged = _flag_openaire_ec_duplicates(conn)
     api_flagged = _flag_openaire_api_duplicates(conn)
     gepris_flagged = _flag_gepris_openaire_duplicates(conn)
     within_flagged = _flag_within_source_duplicates(conn)
+    aggregates_flagged = _flag_aggregate_records(conn)
 
     stats = {
         "dates_fixed": dates_fixed,
         "countries_fixed": countries_fixed,
+        "eu_country_fixed": eu_country_fixed,
         "currencies_fixed": currencies_fixed,
+        "pi_names_fixed": pi_names_fixed,
+        "institutions_fixed": institutions_fixed,
         "funders_linked": funders_linked,
         "enriched": enriched,
         "ec_duplicates_flagged": ec_flagged,
         "api_duplicates_flagged": api_flagged,
         "gepris_duplicates_flagged": gepris_flagged,
         "within_source_flagged": within_flagged,
+        "aggregates_flagged": aggregates_flagged,
     }
     logger.info("Dedup complete: %s", stats)
     return stats
@@ -123,6 +131,25 @@ _COUNTRY_CODE_MAP = {
     "UK": "GB",  # CORDIS uses UK, ISO uses GB
     "EL": "GR",  # EU convention for Greece, ISO uses GR
 }
+
+def _normalize_pi_country_eu(conn: duckdb.DuckDBPyConnection) -> int:
+    """NULL out pi_country='EU' — not a valid ISO 3166-1 alpha-2 code.
+
+    OpenAIRE uses 'EU' as the funder jurisdiction for EC-funded grants,
+    but pi_country should represent the coordinator's country, not the funder's.
+    Since we can't determine the actual coordinator country from OpenAIRE data,
+    we NULL it out (CORDIS records already have the real country codes).
+
+    Returns count of fixed records.
+    """
+    count = conn.execute(
+        "SELECT COUNT(*) FROM grant_award WHERE pi_country = 'EU'"
+    ).fetchone()[0]
+    if count:
+        conn.execute("UPDATE grant_award SET pi_country = NULL WHERE pi_country = 'EU'")
+        logger.info("Nulled pi_country='EU': %d records", count)
+    return count
+
 
 # Non-standard currency codes → ISO 4217
 _CURRENCY_CODE_MAP = {
@@ -296,6 +323,151 @@ def _normalize_currency_codes(conn: duckdb.DuckDBPyConnection) -> int:
             )
             logger.info("Currency code %s → %s: %d records", old_code, new_code, count)
             total += count
+    return total
+
+
+def _normalize_pi_names(conn: duckdb.DuckDBPyConnection) -> int:
+    """Normalize PI names: collapse whitespace, strip titles, remove deceased markers.
+
+    Applied to all sources but mainly affects GEPRIS which has patterns like:
+      "Professor Dr. Max  Mustermann" → "Max Mustermann"
+      "Professorin Dr. Anna  Fischer(†)" → "Anna Fischer"
+      "Klaus  Müller, Ph.D." → "Klaus Müller"
+
+    Returns count of fixed records.
+    """
+    # Count records that will change (have titles, double-spaces, or markers)
+    count = conn.execute("""
+        SELECT COUNT(*) FROM grant_award
+        WHERE pi_name IS NOT NULL AND pi_name != ''
+          AND (
+            pi_name LIKE '%  %'
+            OR pi_name LIKE 'Professor %' OR pi_name LIKE 'Professorin %'
+            OR pi_name LIKE 'Privatdozent%' OR pi_name LIKE 'Dr. %'
+            OR pi_name LIKE '%(%' OR pi_name LIKE '%, Ph.D.'
+          )
+    """).fetchone()[0]
+
+    # Step 1: Strip academic titles from the beginning
+    # Order matters: longest prefixes first to avoid partial matches
+    title_prefixes = [
+        "Professorin Dr. ",
+        "Professor Dr. ",
+        "Privatdozentin Dr. ",
+        "Privatdozent Dr. ",
+        "Professorin ",
+        "Professor ",
+        "Privatdozentin ",
+        "Privatdozent ",
+        "Dr. ",
+    ]
+    for prefix in title_prefixes:
+        conn.execute(
+            "UPDATE grant_award SET pi_name = substr(pi_name, ?) "
+            "WHERE pi_name IS NOT NULL AND pi_name LIKE ?",
+            [len(prefix) + 1, prefix + "%"],
+        )
+
+    # Step 2: Remove ", Ph.D." suffix
+    conn.execute("""
+        UPDATE grant_award
+        SET pi_name = regexp_replace(pi_name, ',\\s*Ph\\.D\\.\\s*$', '')
+        WHERE pi_name IS NOT NULL AND pi_name LIKE '%, Ph.D.'
+    """)
+
+    # Step 3: Remove deceased markers "(†)" or "(+)"
+    conn.execute("""
+        UPDATE grant_award
+        SET pi_name = regexp_replace(pi_name, '\\s*\\([†+]\\)\\s*$', '')
+        WHERE pi_name IS NOT NULL AND pi_name LIKE '%(%'
+    """)
+
+    # Step 4: Collapse multiple whitespace to single space + trim
+    conn.execute("""
+        UPDATE grant_award
+        SET pi_name = trim(regexp_replace(pi_name, '\\s+', ' ', 'g'))
+        WHERE pi_name IS NOT NULL
+          AND (pi_name LIKE '%  %' OR pi_name LIKE ' %' OR pi_name LIKE '% ')
+    """)
+
+    logger.info("Normalized %d PI names", count)
+    return count
+
+
+def _normalize_institutions(conn: duckdb.DuckDBPyConnection) -> int:
+    """Normalize institution names across sources.
+
+    1. CORDIS: Convert ALL-CAPS to Title Case
+    2. GEPRIS: Strip "shared X and Y through:" prefix
+    3. Förderkatalog: NULL out privacy placeholders
+    4. All: Trim whitespace
+
+    Returns count of fixed records.
+    """
+    total = 0
+
+    # 1. CORDIS ALL-CAPS → Title Case
+    count = conn.execute("""
+        SELECT COUNT(*) FROM grant_award
+        WHERE source = 'cordis_bulk'
+          AND pi_institution IS NOT NULL
+          AND pi_institution = upper(pi_institution)
+          AND length(pi_institution) > 1
+    """).fetchone()[0]
+    conn.execute("""
+        UPDATE grant_award
+        SET pi_institution = array_to_string(
+            list_transform(
+                string_split(lower(pi_institution), ' '),
+                x -> concat(upper(x[1]), x[2:])
+            ),
+            ' '
+        )
+        WHERE source = 'cordis_bulk'
+          AND pi_institution IS NOT NULL
+          AND pi_institution = upper(pi_institution)
+          AND length(pi_institution) > 1
+    """)
+    total += count
+
+    # 2. GEPRIS: Strip "shared ... through:" prefix
+    count = conn.execute("""
+        SELECT COUNT(*) FROM grant_award
+        WHERE source = 'gepris'
+          AND pi_institution LIKE 'shared %through:%'
+    """).fetchone()[0]
+    conn.execute("""
+        UPDATE grant_award
+        SET pi_institution = trim(substr(pi_institution,
+            position(':' IN pi_institution) + 1))
+        WHERE source = 'gepris'
+          AND pi_institution LIKE 'shared %through:%'
+    """)
+    total += count
+
+    # 3. Förderkatalog: NULL out privacy placeholders
+    count = conn.execute("""
+        SELECT COUNT(*) FROM grant_award
+        WHERE source = 'foerderkatalog'
+          AND pi_institution LIKE 'Keine Anzeige%'
+    """).fetchone()[0]
+    conn.execute("""
+        UPDATE grant_award
+        SET pi_institution = NULL
+        WHERE source = 'foerderkatalog'
+          AND pi_institution LIKE 'Keine Anzeige%'
+    """)
+    total += count
+
+    # 4. Trim whitespace on all
+    conn.execute("""
+        UPDATE grant_award
+        SET pi_institution = trim(pi_institution)
+        WHERE pi_institution IS NOT NULL
+          AND (pi_institution LIKE ' %' OR pi_institution LIKE '% ')
+    """)
+
+    logger.info("Normalized %d institution names", total)
     return total
 
 
@@ -532,4 +704,44 @@ def _flag_within_source_duplicates(conn: duckdb.DuckDBPyConnection) -> int:
           )
     """).fetchone()[0]
     logger.info("Flagged %d within-source duplicates", count)
+    return count
+
+
+# Funding threshold above which Förderkatalog records are almost certainly
+# program-level aggregates rather than individual research grants.
+_AGGREGATE_FUNDING_THRESHOLD = 50_000_000  # 50M EUR
+
+
+def _flag_aggregate_records(conn: duckdb.DuckDBPyConnection) -> int:
+    """Flag program-level aggregate records that skew funding analyses.
+
+    Förderkatalog contains umbrella entries for entire funding programs
+    (e.g. "Exzellenzinitiative", "Verwaltungsvereinbarung Bund/Länder",
+    "Begabtenförderung") with billions in funding. These are not individual
+    research grants and should be excluded from per-grant analyses.
+
+    Also flags records with negative funding (correction entries).
+
+    Returns count of flagged records.
+    """
+    # Reset aggregate flags first (idempotent)
+    conn.execute("UPDATE grant_award SET is_aggregate = FALSE WHERE is_aggregate = TRUE")
+
+    # Flag Förderkatalog records above threshold
+    conn.execute(
+        "UPDATE grant_award SET is_aggregate = TRUE "
+        "WHERE source = 'foerderkatalog' AND total_funding > ?",
+        [_AGGREGATE_FUNDING_THRESHOLD],
+    )
+
+    # Flag negative funding records (correction entries)
+    conn.execute(
+        "UPDATE grant_award SET is_aggregate = TRUE "
+        "WHERE total_funding < 0"
+    )
+
+    count = conn.execute(
+        "SELECT COUNT(*) FROM grant_award WHERE is_aggregate = TRUE"
+    ).fetchone()[0]
+    logger.info("Flagged %d aggregate/correction records", count)
     return count

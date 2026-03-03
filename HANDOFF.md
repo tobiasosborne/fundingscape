@@ -16,8 +16,9 @@ Built a complete research funding intelligence system from scratch, then hardene
 10. **Phase 9**: BMBF Förderkatalog scraper — reverse-engineered JSP form-based search, POST pagination, 286 quantum projects (€420M)
 11. **Phase 10**: Resumable bulk scrapers — standalone CLI scripts with checkpoint/resume for full GEPRIS (152K) and Förderkatalog (268K) dumps
 12. **Phase 11**: Completed bulk scrapes — fixed GEPRIS session cookies, pagination params, and total-count extraction; ran both scrapers to completion
+13. **Phase 12**: Data normalization — PI names (106K cleaned: titles stripped, whitespace collapsed, deceased markers removed), institution names (59K: CORDIS title-cased, GEPRIS prefixes stripped, privacy placeholders nulled), pi_country="EU" nulled (115K), funder linkage (420K GEPRIS/Förderkatalog linked), GEPRIS↔OpenAIRE dedup (31K flagged), aggregate records flagged (210), `is_aggregate` column added
 
-Final state: **4,078,224 unique grants** (4,132,533 total, 54,309 deduped), **7,194 calls**, **167 tests**, **~1,340 MB database**.
+Final state: **4,046,972 unique grants** (4,132,533 total, 85,351 deduped, 210 aggregates), **7,194 calls**, **187 tests**, **~1,340 MB database**.
 
 ---
 

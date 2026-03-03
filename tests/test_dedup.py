@@ -8,12 +8,16 @@ from fundingscape.dedup import (
     run_dedup,
     _clean_date_anomalies,
     _normalize_country_codes,
+    _normalize_pi_country_eu,
     _normalize_currency_codes,
+    _normalize_pi_names,
+    _normalize_institutions,
     _link_funders,
     _enrich_cordis_from_openaire,
     _flag_openaire_ec_duplicates,
     _flag_openaire_api_duplicates,
     _flag_within_source_duplicates,
+    _flag_aggregate_records,
 )
 from fundingscape.models import GrantAward
 
@@ -55,6 +59,34 @@ def _openaire_api_grant(db, project_id, funder="DFG", total_funding=None, **kw):
         source="openaire",
         source_id=f"openaire_{funder}_{project_id}",
         total_funding=Decimal(str(total_funding)) if total_funding else None,
+        status="active",
+    )
+    return insert_grant(db, g)
+
+
+def _gepris_grant(db, project_id, pi_name=None, **kw):
+    """Helper: insert a GEPRIS grant."""
+    g = GrantAward(
+        project_title=kw.get("project_title", f"GEPRIS {project_id}"),
+        project_id=project_id,
+        source="gepris",
+        source_id=f"gepris_{project_id}",
+        pi_name=pi_name,
+        pi_country="DE",
+        status="active",
+    )
+    return insert_grant(db, g)
+
+
+def _foerderkatalog_grant(db, project_id, total_funding=None, **kw):
+    """Helper: insert a Förderkatalog grant."""
+    g = GrantAward(
+        project_title=kw.get("project_title", f"FK {project_id}"),
+        project_id=project_id,
+        source="foerderkatalog",
+        source_id=f"fk_{project_id}",
+        total_funding=Decimal(str(total_funding)) if total_funding else None,
+        pi_country="DE",
         status="active",
     )
     return insert_grant(db, g)
@@ -155,6 +187,27 @@ class TestNormalizeCountryCodes:
         assert row[0] == "DE"
 
 
+class TestNormalizePiCountryEU:
+    def test_eu_nulled(self, db):
+        """pi_country='EU' is set to NULL."""
+        _openaire_bulk_grant(db, "EU001", funder="EC", pi_country="EU")
+        count = _normalize_pi_country_eu(db)
+        row = db.execute(
+            "SELECT pi_country FROM grant_award WHERE project_id='EU001'"
+        ).fetchone()
+        assert row[0] is None
+        assert count >= 1
+
+    def test_real_country_preserved(self, db):
+        """Real ISO country codes are not affected."""
+        _cordis_grant(db, "EU002", pi_country="DE")
+        _normalize_pi_country_eu(db)
+        row = db.execute(
+            "SELECT pi_country FROM grant_award WHERE project_id='EU002'"
+        ).fetchone()
+        assert row[0] == "DE"
+
+
 class TestNormalizeCurrencyCodes:
     def test_dollar_sign_to_aud(self, db):
         """'$' currency is normalized to AUD."""
@@ -179,6 +232,134 @@ class TestNormalizeCurrencyCodes:
             "SELECT currency FROM grant_award WHERE project_id='CUR001'"
         ).fetchone()
         assert row[0] == "EUR"
+
+
+class TestNormalizePiNames:
+    def test_double_spaces_collapsed(self, db):
+        """Double spaces between first and last name are collapsed."""
+        _gepris_grant(db, "PI001", pi_name="Max  Mustermann")
+        _normalize_pi_names(db)
+        row = db.execute("SELECT pi_name FROM grant_award WHERE project_id='PI001'").fetchone()
+        assert row[0] == "Max Mustermann"
+
+    def test_professor_dr_stripped(self, db):
+        """'Professor Dr.' title is stripped."""
+        _gepris_grant(db, "PI002", pi_name="Professor Dr. Edgar  Hösch")
+        _normalize_pi_names(db)
+        row = db.execute("SELECT pi_name FROM grant_award WHERE project_id='PI002'").fetchone()
+        assert row[0] == "Edgar Hösch"
+
+    def test_professorin_dr_stripped(self, db):
+        """'Professorin Dr.' title is stripped."""
+        _gepris_grant(db, "PI003", pi_name="Professorin Dr. Viola  König")
+        _normalize_pi_names(db)
+        row = db.execute("SELECT pi_name FROM grant_award WHERE project_id='PI003'").fetchone()
+        assert row[0] == "Viola König"
+
+    def test_privatdozent_stripped(self, db):
+        """'Privatdozent Dr.' title is stripped."""
+        _gepris_grant(db, "PI004", pi_name="Privatdozent Dr. Roger  Schallreuter")
+        _normalize_pi_names(db)
+        row = db.execute("SELECT pi_name FROM grant_award WHERE project_id='PI004'").fetchone()
+        assert row[0] == "Roger Schallreuter"
+
+    def test_dr_only_stripped(self, db):
+        """'Dr.' title (without Professor) is stripped."""
+        _gepris_grant(db, "PI005", pi_name="Dr. Hans-Jürgen  Rüger")
+        _normalize_pi_names(db)
+        row = db.execute("SELECT pi_name FROM grant_award WHERE project_id='PI005'").fetchone()
+        assert row[0] == "Hans-Jürgen Rüger"
+
+    def test_deceased_marker_removed(self, db):
+        """Deceased marker '(†)' is removed."""
+        _gepris_grant(db, "PI006", pi_name="Professor Dr. Hanns  Ruder(†)")
+        _normalize_pi_names(db)
+        row = db.execute("SELECT pi_name FROM grant_award WHERE project_id='PI006'").fetchone()
+        assert row[0] == "Hanns Ruder"
+
+    def test_phd_suffix_removed(self, db):
+        """', Ph.D.' suffix is removed."""
+        _gepris_grant(db, "PI007", pi_name="Aaron  Greicius, Ph.D.")
+        _normalize_pi_names(db)
+        row = db.execute("SELECT pi_name FROM grant_award WHERE project_id='PI007'").fetchone()
+        assert row[0] == "Aaron Greicius"
+
+    def test_plain_name_preserved(self, db):
+        """Names without titles or markers are preserved (except whitespace)."""
+        _gepris_grant(db, "PI008", pi_name="Carmen Gransee")
+        _normalize_pi_names(db)
+        row = db.execute("SELECT pi_name FROM grant_award WHERE project_id='PI008'").fetchone()
+        assert row[0] == "Carmen Gransee"
+
+    def test_compound_name_preserved(self, db):
+        """Compound surnames like 'von Humboldt' are preserved."""
+        _gepris_grant(db, "PI009", pi_name="Professor Dr. Alexander  von Humboldt")
+        _normalize_pi_names(db)
+        row = db.execute("SELECT pi_name FROM grant_award WHERE project_id='PI009'").fetchone()
+        assert row[0] == "Alexander von Humboldt"
+
+    def test_professor_no_dr(self, db):
+        """'Professor' without 'Dr.' is stripped."""
+        _gepris_grant(db, "PI010", pi_name="Professor Eric von Elert, Ph.D.")
+        _normalize_pi_names(db)
+        row = db.execute("SELECT pi_name FROM grant_award WHERE project_id='PI010'").fetchone()
+        assert row[0] == "Eric von Elert"
+
+
+class TestNormalizeInstitutions:
+    def test_cordis_allcaps_to_titlecase(self, db):
+        """CORDIS ALL-CAPS institutions get converted to Title Case."""
+        _cordis_grant(db, "INST001")
+        db.execute(
+            "UPDATE grant_award SET pi_institution = 'TECHNISCHE UNIVERSITAET MUENCHEN' "
+            "WHERE project_id = 'INST001'"
+        )
+        _normalize_institutions(db)
+        row = db.execute(
+            "SELECT pi_institution FROM grant_award WHERE project_id='INST001'"
+        ).fetchone()
+        assert row[0] == "Technische Universitaet Muenchen"
+
+    def test_gepris_shared_prefix_stripped(self, db):
+        """GEPRIS 'shared X through:' prefix is stripped."""
+        _gepris_grant(db, "INST002")
+        db.execute(
+            "UPDATE grant_award SET pi_institution = "
+            "'shared FU Berlin and HU Berlin through:Charité - Universitätsmedizin Berlin' "
+            "WHERE project_id = 'INST002'"
+        )
+        _normalize_institutions(db)
+        row = db.execute(
+            "SELECT pi_institution FROM grant_award WHERE project_id='INST002'"
+        ).fetchone()
+        assert row[0] == "Charité - Universitätsmedizin Berlin"
+
+    def test_foerderkatalog_privacy_nulled(self, db):
+        """Förderkatalog privacy placeholder is NULLed."""
+        _foerderkatalog_grant(db, "INST003")
+        db.execute(
+            "UPDATE grant_award SET pi_institution = "
+            "'Keine Anzeige aufgrund datenschutzrechtlicher Regelungen.' "
+            "WHERE project_id = 'INST003'"
+        )
+        _normalize_institutions(db)
+        row = db.execute(
+            "SELECT pi_institution FROM grant_award WHERE project_id='INST003'"
+        ).fetchone()
+        assert row[0] is None
+
+    def test_normal_institution_preserved(self, db):
+        """Normal institution names are not modified."""
+        _gepris_grant(db, "INST004")
+        db.execute(
+            "UPDATE grant_award SET pi_institution = 'Ludwig-Maximilians-Universität München' "
+            "WHERE project_id = 'INST004'"
+        )
+        _normalize_institutions(db)
+        row = db.execute(
+            "SELECT pi_institution FROM grant_award WHERE project_id='INST004'"
+        ).fetchone()
+        assert row[0] == "Ludwig-Maximilians-Universität München"
 
 
 class TestLinkFunders:
@@ -342,6 +523,45 @@ class TestWithinSourceDuplicates:
         count = _flag_within_source_duplicates(db)
 
         assert count == 0
+
+
+class TestFlagAggregateRecords:
+    def test_flags_umbrella_record(self, db):
+        """Förderkatalog record above 50M is flagged as aggregate."""
+        _foerderkatalog_grant(db, "AGG001", total_funding=100_000_000)
+        _flag_aggregate_records(db)
+        row = db.execute(
+            "SELECT is_aggregate FROM grant_award WHERE project_id='AGG001'"
+        ).fetchone()
+        assert row[0] is True
+
+    def test_preserves_normal_grant(self, db):
+        """Normal-sized Förderkatalog grant is not flagged."""
+        _foerderkatalog_grant(db, "AGG002", total_funding=500_000)
+        _flag_aggregate_records(db)
+        row = db.execute(
+            "SELECT is_aggregate FROM grant_award WHERE project_id='AGG002'"
+        ).fetchone()
+        assert row[0] is False
+
+    def test_flags_negative_funding(self, db):
+        """Records with negative funding are flagged as aggregate."""
+        _foerderkatalog_grant(db, "AGG003", total_funding=-100_000)
+        _flag_aggregate_records(db)
+        row = db.execute(
+            "SELECT is_aggregate FROM grant_award WHERE project_id='AGG003'"
+        ).fetchone()
+        assert row[0] is True
+
+    def test_aggregate_excluded_from_deduped_view(self, db):
+        """Aggregate records are excluded from grant_award_deduped view."""
+        _foerderkatalog_grant(db, "AGG004", total_funding=200_000_000)
+        _foerderkatalog_grant(db, "AGG005", total_funding=1_000_000)
+        _flag_aggregate_records(db)
+        total = db.execute("SELECT COUNT(*) FROM grant_award").fetchone()[0]
+        deduped = db.execute("SELECT COUNT(*) FROM grant_award_deduped").fetchone()[0]
+        assert total == 2
+        assert deduped == 1  # Only the normal grant
 
 
 class TestRunDedup:

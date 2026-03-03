@@ -175,7 +175,7 @@ def _funder_to_country(funder: str) -> str | None:
         "ARC": "AU",
         "FCT": "PT",
         "SFI": "IE",
-        "EC": "EU",
+        "EC": None,  # EU is not a valid ISO country code; coordinator country unknown
     }
     return mapping.get(funder)
 

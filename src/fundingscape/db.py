@@ -145,6 +145,8 @@ def create_tables(conn: duckdb.DuckDBPyConnection) -> None:
         conn.execute("ALTER TABLE grant_award ADD COLUMN dedup_of INTEGER")
     if "funder_id" not in cols:
         conn.execute("ALTER TABLE grant_award ADD COLUMN funder_id INTEGER")
+    if "is_aggregate" not in cols:
+        conn.execute("ALTER TABLE grant_award ADD COLUMN is_aggregate BOOLEAN DEFAULT FALSE")
 
     # Indexes for dedup matching
     conn.execute("""
@@ -157,7 +159,11 @@ def create_tables(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
     # Deduplicated view: only canonical records
-    conn.execute("CREATE OR REPLACE VIEW grant_award_deduped AS SELECT * FROM grant_award WHERE dedup_of IS NULL")
+    conn.execute("""
+        CREATE OR REPLACE VIEW grant_award_deduped AS
+        SELECT * FROM grant_award
+        WHERE dedup_of IS NULL AND (is_aggregate IS NULL OR is_aggregate = FALSE)
+    """)
 
     conn.execute("""
         CREATE SEQUENCE IF NOT EXISTS seq_grant START 1

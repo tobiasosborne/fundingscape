@@ -96,6 +96,8 @@ def _extract_to_csv(tar_path: str, csv_path: str) -> int:
                             funder_short = fund.get("shortName", "") or ""
                             funder_name = fund.get("name", "") or ""
                             country = fund.get("jurisdiction")
+                            if country == "EU":
+                                country = None  # Not a valid ISO country code
                             stream = fund.get("fundingStream") or {}
                             funding_stream = stream.get("description", "") or ""
                             break  # Use first funder
