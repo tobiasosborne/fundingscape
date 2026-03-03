@@ -26,6 +26,7 @@ import time
 from pathlib import Path
 
 import click
+import httpx
 from bs4 import BeautifulSoup
 from rich.console import Console
 from rich.logging import RichHandler
@@ -162,19 +163,22 @@ def _parse_catalogue_page(html: str) -> list[dict]:
 def _extract_total_from_catalogue(html: str) -> int:
     """Extract total result count from GEPRIS catalogue page.
 
-    Looks for patterns like "152,700 results" or "152.700 Treffer".
+    Extracts from pagination links: the last page link has the highest index,
+    e.g. index=152700 with hitsPerPage=50 means ~152750 projects.
+    Falls back to text patterns like "152,700 results" or "152.700 Treffer".
     """
-    # Try English pattern first
-    match = re.search(r"([\d,.\s]+)\s*(?:results|Treffer|Projects)", html)
-    if match:
-        num_str = match.group(1).replace(",", "").replace(".", "").replace(" ", "")
-        try:
-            return int(num_str)
-        except ValueError:
-            pass
+    # Method 1: Extract from pagination links (most reliable)
+    # Look for the highest index= value in pagination links
+    indices = [int(m.group(1)) for m in re.finditer(r'index=(\d+)', html)]
+    if indices:
+        max_index = max(indices)
+        # The last page starts at max_index, plus up to hitsPerPage results
+        hits_match = re.search(r'hitsPerPage=(\d+)', html)
+        hits_per_page = int(hits_match.group(1)) if hits_match else 50
+        return max_index + hits_per_page
 
-    # Try extracting from pagination info
-    match = re.search(r"of\s+([\d,.\s]+)", html)
+    # Method 2: Text patterns
+    match = re.search(r"([\d,.\s]+)\s*(?:results|Treffer|Projects)", html)
     if match:
         num_str = match.group(1).replace(",", "").replace(".", "").replace(" ", "")
         try:
@@ -185,6 +189,37 @@ def _extract_total_from_catalogue(html: str) -> int:
     return 0
 
 
+def _session_fetch(
+    session: httpx.Client,
+    url: str,
+    max_retries: int = 3,
+    delay: float = 2.5,
+) -> str:
+    """Fetch a URL using a persistent session (with cookies). Returns HTML text."""
+    delays = [2, 4, 8]
+    last_error = None
+
+    for attempt in range(max_retries + 1):
+        try:
+            time.sleep(delay)
+            resp = session.get(url, follow_redirects=True)
+            resp.raise_for_status()
+            return resp.text
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries:
+                d = delays[min(attempt, len(delays) - 1)]
+                logger.warning(
+                    "Request failed (attempt %d/%d): %s. Retrying in %ds...",
+                    attempt + 1, max_retries, e, d,
+                )
+                time.sleep(d)
+            else:
+                logger.error("Request failed after %d retries: %s", max_retries, e)
+
+    raise last_error  # type: ignore[misc]
+
+
 def run_listing(
     client: CachedHttpClient,
     conn,
@@ -193,6 +228,7 @@ def run_listing(
 ) -> int:
     """Phase 1: Catalogue browse to collect all project IDs.
 
+    Uses httpx.Client with persistent cookies (JSESSIONID) for pagination.
     Returns number of projects listed.
     """
     checkpoint = load_checkpoint()
@@ -207,103 +243,38 @@ def run_listing(
             f"({listed:,} listed so far)[/green]"
         )
 
-    # First page to get total count
-    console.print("[bold]Fetching GEPRIS catalogue...[/bold]")
-    url = (
-        f"{SEARCH_URL}?task=doKatalog&context=projekt"
-        f"&hitsPerPage={hits_per_page}"
-        f"&findButton=Finden"
-        f"&language=en"
-    )
-    try:
-        html = fetch_with_retry(client, url)
-    except Exception as e:
-        console.print(f"[red]Failed to fetch catalogue: {e}[/red]")
-        return listed
-
-    total = _extract_total_from_catalogue(html)
-    if total == 0:
-        # Try parsing first page — if we get results, estimate total later
-        first_results = _parse_catalogue_page(html)
-        if not first_results:
-            console.print("[red]No results found — check GEPRIS accessibility.[/red]")
+    # Use a persistent session for cookie management (JSESSIONID)
+    with httpx.Client(timeout=60.0) as session:
+        # First page — initiates the search and sets JSESSIONID cookie
+        console.print("[bold]Fetching GEPRIS catalogue...[/bold]")
+        init_url = (
+            f"{SEARCH_URL}?task=doKatalog&context=projekt"
+            f"&hitsPerPage={hits_per_page}"
+            f"&findButton=Finden"
+            f"&language=en"
+        )
+        try:
+            html = _session_fetch(session, init_url, delay=0)
+        except Exception as e:
+            console.print(f"[red]Failed to fetch catalogue: {e}[/red]")
             return listed
-        # We'll discover the total as we go — set a large estimate
-        total = 200_000
-        console.print(f"[yellow]Could not extract total count, using estimate: {total:,}[/yellow]")
-    else:
-        console.print(f"[bold green]Found {total:,} total projects[/bold green]")
 
-    # Process first page if starting fresh
-    if start_index == 0 and listed == 0:
-        first_results = _parse_catalogue_page(html)
-        for r in first_results:
-            try:
-                grant = GrantAward(
-                    project_title=r["title"],
-                    project_id=r["id"],
-                    pi_country="DE",
-                    source=SOURCE_ID,
-                    source_id=f"gepris_{r['id']}",
-                )
-                upsert_grant(conn, grant)
-                listed += 1
-            except Exception as e:
-                logger.warning("Failed to upsert project %s: %s", r["id"], e)
+        total = _extract_total_from_catalogue(html)
+        if total == 0:
+            first_results = _parse_catalogue_page(html)
+            if not first_results:
+                console.print("[red]No results found — check GEPRIS accessibility.[/red]")
+                return listed
+            total = 200_000
+            console.print(f"[yellow]Could not extract total count, using estimate: {total:,}[/yellow]")
+        else:
+            console.print(f"[bold green]Found {total:,} total projects[/bold green]")
 
-        start_index = hits_per_page
-        save_checkpoint({"phase": "listing", "index": start_index, "total": total, "listed": listed})
-
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TextColumn("[progress.percentage]{task.percentage:>3.1f}%"),
-        TimeElapsedColumn(),
-        TimeRemainingColumn(),
-        console=console,
-    ) as progress:
-        task = progress.add_task("Listing projects", total=total, completed=listed)
-
-        index = start_index
-        consecutive_empty = 0
-
-        while index < total + hits_per_page:
-            if _shutdown:
-                console.print("[yellow]Shutdown — progress saved.[/yellow]")
-                break
-
-            url = (
-                f"{SEARCH_URL}?context=projekt"
-                f"&findButton=historyCall"
-                f"&hitsPerPage={hits_per_page}"
-                f"&index={index}"
-                f"&language=en"
-            )
-
-            try:
-                html = fetch_with_retry(client, url)
-            except Exception as e:
-                logger.error("Catalogue page at index %d failed: %s", index, e)
-                index += hits_per_page
-                save_checkpoint({"phase": "listing", "index": index, "total": total, "listed": listed})
-                continue
-
-            results = _parse_catalogue_page(html)
-            if not results:
-                consecutive_empty += 1
-                if consecutive_empty >= 3:
-                    logger.info("3 consecutive empty pages at index %d — end of data", index)
-                    break
-                index += hits_per_page
-                save_checkpoint({"phase": "listing", "index": index, "total": total, "listed": listed})
-                time.sleep(delay)
-                continue
-
-            consecutive_empty = 0
-
-            for r in results:
+        # If resuming, re-init the session but skip to start_index
+        # Process first page if starting fresh
+        if start_index == 0 and listed == 0:
+            first_results = _parse_catalogue_page(html)
+            for r in first_results:
                 try:
                     grant = GrantAward(
                         project_title=r["title"],
@@ -317,11 +288,74 @@ def run_listing(
                 except Exception as e:
                     logger.warning("Failed to upsert project %s: %s", r["id"], e)
 
-            index += hits_per_page
-            save_checkpoint({"phase": "listing", "index": index, "total": total, "listed": listed})
-            progress.update(task, completed=listed)
+            start_index = hits_per_page
+            save_checkpoint({"phase": "listing", "index": start_index, "total": total, "listed": listed})
 
-            time.sleep(delay)
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.1f}%"),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Listing projects", total=total, completed=listed)
+
+            index = start_index
+            consecutive_empty = 0
+
+            while index < total + hits_per_page:
+                if _shutdown:
+                    console.print("[yellow]Shutdown — progress saved.[/yellow]")
+                    break
+
+                url = (
+                    f"{SEARCH_URL}?task=doKatalog&context=projekt"
+                    f"&findButton=historyCall"
+                    f"&hitsPerPage={hits_per_page}"
+                    f"&index={index}"
+                    f"&language=en"
+                )
+
+                try:
+                    html = _session_fetch(session, url, delay=delay)
+                except Exception as e:
+                    logger.error("Catalogue page at index %d failed: %s", index, e)
+                    index += hits_per_page
+                    save_checkpoint({"phase": "listing", "index": index, "total": total, "listed": listed})
+                    continue
+
+                results = _parse_catalogue_page(html)
+                if not results:
+                    consecutive_empty += 1
+                    if consecutive_empty >= 3:
+                        logger.info("3 consecutive empty pages at index %d — end of data", index)
+                        break
+                    index += hits_per_page
+                    save_checkpoint({"phase": "listing", "index": index, "total": total, "listed": listed})
+                    continue
+
+                consecutive_empty = 0
+
+                for r in results:
+                    try:
+                        grant = GrantAward(
+                            project_title=r["title"],
+                            project_id=r["id"],
+                            pi_country="DE",
+                            source=SOURCE_ID,
+                            source_id=f"gepris_{r['id']}",
+                        )
+                        upsert_grant(conn, grant)
+                        listed += 1
+                    except Exception as e:
+                        logger.warning("Failed to upsert project %s: %s", r["id"], e)
+
+                index += hits_per_page
+                save_checkpoint({"phase": "listing", "index": index, "total": total, "listed": listed})
+                progress.update(task, completed=listed)
 
     return listed
 
