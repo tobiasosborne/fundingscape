@@ -140,11 +140,17 @@ These funders have proper APIs and would add rich data:
 - Database: `data/db/fundingscape.duckdb`
 - Cache: `data/cache/`
 - Förderkatalog checkpoint: `data/cache/foerderkatalog/checkpoint.json`
+- Förderkatalog detail checkpoint: `data/cache/foerderkatalog/detail_checkpoint.json`
 - GEPRIS checkpoint: `data/cache/gepris/bulk_checkpoint.json`
 - OpenAIRE dump: `data/cache/openaire/project.tar`
 - CORDIS CSVs: `data/cache/cordis/`
 - Manual entries: `manual/*.yaml`
 - Generated report: `REPORT.md`
+
+### Dropbox Backup
+- Location: `Dropbox/Projects/Computers/fundingscape/` (5.2 GB)
+- Contents: DB, checkpoints, CORDIS/ROR data, GEPRIS + FK caches as tarballs
+- Restore caches: `tar xf gepris_cache.tar -C data/cache/` (same for FK)
 
 ### Environment
 - Python 3.12.3, uv 0.9.17
