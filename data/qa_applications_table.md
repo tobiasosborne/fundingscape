@@ -1,30 +1,30 @@
 # Quantum Computing Applications: Funding & Advantage Classification
 
 Generated from Fundingscape (4,046,972 grants) × QC Applications DB (124 applications). All funding amounts EUR-normalized via ECB annual reference rates.
-Total addressable funding matched: 10.73B EUR across 11,889 grants.
+Total addressable funding matched: 8.27B EUR across 9,106 grants.
 
 ## Domain Summary
 
 | Domain | Apps | Grants | Funding (M EUR) | Best Advantage | Strongest Evidence |
 |--------|------|--------|-----------------|----------------|-------------------|
-| Quantum Simulation | 13 | 2,199 | 1,365.9 | exponential | proven (caveats) |
-| Chemistry | 11 | 1,521 | 1,219.6 | superpolynomial | conjectured |
-| Quantum Computing | 6 | 1,259 | 1,192.1 | exponential | proven |
-| Materials Science | 8 | 1,305 | 905.9 | superpolynomial | conjectured |
-| Computer Science | 9 | 738 | 742.4 | superpolynomial | proven |
+| Quantum Computing | 6 | 1,262 | 1,155.6 | exponential | proven |
+| Quantum Simulation | 13 | 1,673 | 972.4 | exponential | proven (caveats) |
+| Materials Science | 8 | 1,065 | 716.1 | superpolynomial | conjectured |
 | Telecommunications | 1 | 156 | 707.1 | unknown | heuristic only |
 | Finance | 7 | 368 | 672.4 | quadratic | proven (caveats) |
-| Cryptography | 8 | 755 | 605.2 | exponential | proven |
+| Chemistry | 11 | 767 | 596.1 | superpolynomial | conjectured |
 | Logistics | 4 | 178 | 496.9 | unknown | heuristic only |
 | Engineering | 5 | 389 | 484.9 | exponential | proven |
 | Life Sciences | 5 | 380 | 405.4 | quadratic | heuristic only |
-| Defence | 2 | 356 | 383.2 | polynomial | proven (caveats) |
-| Optimisation | 16 | 574 | 375.4 | polynomial | proven |
 | Energy | 4 | 436 | 363.9 | superpolynomial | conjectured |
-| Mathematics | 6 | 425 | 249.5 | exponential | proven |
+| Computer Science | 9 | 475 | 346.5 | superpolynomial | proven |
+| Cryptography | 8 | 389 | 290.0 | exponential | proven |
+| Defence | 2 | 246 | 282.8 | polynomial | proven (caveats) |
 | Machine Learning | 12 | 345 | 227.7 | exponential | proven (caveats) |
 | Linear Algebra | 4 | 349 | 185.4 | exponential | proven |
+| Optimisation | 16 | 341 | 171.7 | polynomial | proven |
 | Earth Science | 2 | 143 | 142.9 | unknown | conjectured |
+| Mathematics | 6 | 131 | 48.8 | exponential | proven |
 | Agriculture | 1 | 13 | 4.8 | superpolynomial | conjectured |
 
 ## All Applications
@@ -33,18 +33,18 @@ Total addressable funding matched: 10.73B EUR across 11,889 grants.
 |--------|-----------|-------------|----------------|-----------------|----------|--------|-----------------|------|-------------|
 | Agriculture | Crop Science | Fertiliser catalyst design (Haber-Bosch alternative) | superpolynomial | conjectured | theoretical | 13 | 4.8 | 2017 | UKRI(5), EC(4), DFG(3) |
 | Chemistry | Atmospheric Chemistry | Atmospheric reaction rate computation | superpolynomial | conjectured | theoretical | 58 | 31.4 | 2021 | UKRI(25), DFG(14), EC(8) |
-| Chemistry | Catalysis | Catalytic reaction mechanism elucidation | superpolynomial | conjectured | theoretical | 323 | 286.2 | 2017 | DFG(145), UKRI(86), EC(34) |
+| Chemistry | Catalysis | Catalytic reaction mechanism elucidation | superpolynomial | conjectured | theoretical | 18 | 14.5 | 2017 | UKRI(11), EC(2), DFG(2) |
 | Chemistry | Drug Discovery | Binding affinity prediction | unknown | conjectured | numerical_evidence | 148 | 157.8 | 2018 | UKRI(71), DFG(21), FCT(17) |
 | Chemistry | Drug Discovery | Retrosynthesis planning | unknown | heuristic_only | theoretical | 20 | 8.7 | 2021 | UKRI(8), DFG(5), ANR(3) |
 | Chemistry | Electrochemistry | Electrochemical reaction simulation | superpolynomial | conjectured | theoretical | 35 | 19.1 | 2020 | DFG(12), EC(7), ANR(5) |
-| Chemistry | Molecular Simulation | Molecular ground state energy estimation | superpolynomial | conjectured | small_device_demo | 529 | 390.6 | 2005 | DFG(257), UKRI(148), EC(57) |
 | Chemistry | Molecular Simulation | Open-shell and radical species computation | superpolynomial | conjectured | small_device_demo | 99 | 98.0 | 2018 | DFG(40), UKRI(22), EC(19) |
 | Chemistry | Molecular Simulation | Vibrational structure and molecular spectra | polynomial | conjectured | small_device_demo | 44 | 52.3 | 2018 | DFG(25), EC(8), UKRI(7) |
+| Chemistry | Molecular Simulation | Molecular ground state energy estimation | superpolynomial | conjectured | small_device_demo | 80 | 38.8 | 2005 | UKRI(35), DFG(26), EC(7) |
 | Chemistry | Molecular Simulation | Molecular excited state computation | superpolynomial | conjectured | small_device_demo | 42 | 27.7 | 2019 | DFG(18), UKRI(12), EC(4) |
 | Chemistry | Molecular Simulation | Molecular dynamics on quantum PES | superpolynomial | conjectured | numerical_evidence | 12 | 6.6 | 2019 | UKRI(6), EC(4), DFG(1) |
 | Chemistry | Photochemistry | Photosynthetic energy transfer simulation | superpolynomial | conjectured | numerical_evidence | 211 | 141.1 | 2011 | UKRI(78), DFG(52), EC(33) |
-| Computer Science | Computational Complexity | Random circuit sampling | superpolynomial | proven_with_caveats | small_device_demo | 306 | 452.8 | 2016 | UKRI(124), EC(67), DFG(59) |
 | Computer Science | Computational Complexity | Boson sampling | superpolynomial | proven_with_caveats | small_device_demo | 169 | 114.7 | 2011 | DFG(55), EC(40), UKRI(33) |
+| Computer Science | Computational Complexity | Random circuit sampling | superpolynomial | proven_with_caveats | small_device_demo | 43 | 56.9 | 2016 | UKRI(21), EC(14), DFG(3) |
 | Computer Science | Graph Algorithms | Quantum walk on graphs | polynomial | proven | small_device_demo | 67 | 28.4 | 1998 | NSF(18), UKRI(14), DFG(11) |
 | Computer Science | Graph Algorithms | Element distinctness and graph property testing | polynomial | proven | theoretical | 13 | 4.3 | 2003 | DFG(4), UKRI(3), FCT(3) |
 | Computer Science | Information Theory | Quantum channel capacity computation | unknown | conjectured | theoretical | 70 | 78.4 | 2003 | UKRI(28), EC(14), DFG(9) |
@@ -54,13 +54,13 @@ Total addressable funding matched: 10.73B EUR across 11,889 grants.
 | Computer Science | Verification | Quantum interactive proofs (QIP = PSPACE) | superpolynomial | proven | theoretical | 39 | 25.2 | 2009 | UKRI(13), EC(7), DFG(7) |
 | Cryptography | Post-Quantum Cryptography | Lattice problem solving (LWE/SVP) | subquadratic | conjectured | theoretical | 74 | 49.3 | 2015 | UKRI(29), DFG(17), EC(15) |
 | Cryptography | Post-Quantum Cryptography | Code-based cryptanalysis | subquadratic | proven_with_caveats | theoretical | 36 | 18.8 | 2017 | DFG(9), ANR(7), EC(6) |
-| Cryptography | Public-Key Cryptanalysis | Integer factorisation | exponential | proven | small_device_demo | 421 | 355.4 | 1994 | UKRI(147), EC(95), DFG(52) |
+| Cryptography | Public-Key Cryptanalysis | Integer factorisation | exponential | proven | small_device_demo | 55 | 40.1 | 1994 | UKRI(30), DFG(11), EC(5) |
 | Cryptography | Public-Key Cryptanalysis | Elliptic curve discrete logarithm | exponential | proven | theoretical | 28 | 25.3 | 1994 | UKRI(12), EC(7), ANR(4) |
 | Cryptography | Public-Key Cryptanalysis | Discrete logarithm over finite fields | exponential | proven | small_device_demo | 38 | 25.1 | 1994 | UKRI(14), DFG(8), ANR(7) |
 | Cryptography | Random Number Generation | Quantum random number generation | exponential | proven | production | 115 | 100.8 | 2000 | UKRI(52), EC(29), DFG(15) |
 | Cryptography | Symmetric Cryptanalysis | Symmetric key search | quadratic | proven | theoretical | 28 | 20.9 | 1996 | UKRI(13), EC(7), DFG(5) |
 | Cryptography | Symmetric Cryptanalysis | Hash collision finding | subquadratic | proven_with_caveats | theoretical | 15 | 9.6 | 1998 | DFG(7), UKRI(3), NWO(2) |
-| Defence | Navigation | Quantum-enhanced GPS-denied navigation | polynomial | proven_with_caveats | industry_pilot | 243 | 255.9 | 2014 | UKRI(144), DFG(26), ANR(25) |
+| Defence | Navigation | Quantum-enhanced GPS-denied navigation | polynomial | proven_with_caveats | industry_pilot | 133 | 155.5 | 2014 | UKRI(92), ANR(16), DFG(8) |
 | Defence | Radar & Sensing | Quantum radar and target detection | constant | proven_with_caveats | small_device_demo | 113 | 127.3 | 2008 | DFG(35), UKRI(34), ANR(20) |
 | Earth Science | Climate Modelling | Climate and weather simulation | unknown | conjectured | theoretical | 106 | 108.5 | 2021 | UKRI(50), EC(30), DFG(14) |
 | Earth Science | Geophysics | Seismic wave inversion | unknown | conjectured | theoretical | 37 | 34.4 | 2021 | UKRI(20), DFG(8), EC(4) |
@@ -111,9 +111,9 @@ Total addressable funding matched: 10.73B EUR across 11,889 grants.
 | Materials Science | Photovoltaics | Photovoltaic material simulation | superpolynomial | conjectured | theoretical | 99 | 44.1 | 2019 | DFG(35), UKRI(30), EC(16) |
 | Materials Science | Polymers | Polymer and soft matter simulation | unknown | conjectured | theoretical | 52 | 66.4 | 2021 | UKRI(25), DFG(11), FCT(7) |
 | Materials Science | Semiconductors | Semiconductor defect simulation | superpolynomial | conjectured | theoretical | 163 | 153.3 | 2020 | DFG(69), UKRI(50), EC(15) |
-| Materials Science | Strongly Correlated Materials | High-Tc superconductor simulation | superpolynomial | conjectured | theoretical | 661 | 404.8 | 2010 | DFG(188), BMBF(178), UKRI(117) |
+| Materials Science | Strongly Correlated Materials | High-Tc superconductor simulation | superpolynomial | conjectured | theoretical | 421 | 215.0 | 2010 | BMBF(176), DFG(126), UKRI(35) |
 | Materials Science | Topological Materials | Topological phase classification | polynomial | conjectured | theoretical | 141 | 79.7 | 2012 | DFG(64), EC(26), UKRI(24) |
-| Mathematics | Algebra | Quantum algorithm for Jones polynomial | superpolynomial | proven | theoretical | 334 | 213.9 | 2006 | EC(90), UKRI(82), DFG(60) |
+| Mathematics | Algebra | Quantum algorithm for Jones polynomial | superpolynomial | proven | theoretical | 40 | 13.2 | 2006 | NSF(13), UKRI(7), DFG(6) |
 | Mathematics | Algebra | Non-abelian hidden subgroup problem | unknown | debated | theoretical | 7 | 1.6 | 1997 | UKRI(3), ARC(2), DFG(1) |
 | Mathematics | Counting | Approximate counting and partition functions | quadratic | proven | theoretical | 6 | 1.2 | 2011 | UKRI(3), DFG(2), FCT(1) |
 | Mathematics | Number Theory | Period finding and hidden subgroup problem | exponential | proven | theoretical | 63 | 25.7 | 1994 | DFG(35), UKRI(18), EC(5) |
@@ -131,14 +131,14 @@ Total addressable funding matched: 10.73B EUR across 11,889 grants.
 | Optimisation | Combinatorial Optimisation | Set cover and minimum vertex cover | quadratic | heuristic_only | theoretical | 2 | 0.2 | 2018 | DFG(1), UKRI(1) |
 | Optimisation | Continuous Optimisation | Convex optimisation / SDP solving | polynomial | proven_with_caveats | theoretical | 22 | 10.4 | 2017 | UKRI(6), EC(5), DFG(5) |
 | Optimisation | Continuous Optimisation | Gradient estimation and optimisation | polynomial | proven | theoretical | 8 | 0.7 | 2005 | UKRI(3), DFG(2), EC(1) |
-| Optimisation | Network Optimisation | Maximum flow and minimum cut | polynomial | proven_with_caveats | theoretical | 234 | 203.9 | 2019 | UKRI(89), DFG(53), EC(43) |
+| Optimisation | Network Optimisation | Maximum flow and minimum cut | polynomial | proven_with_caveats | theoretical | 1 | 0.2 | 2019 | ANR(1) |
 | Optimisation | Scheduling & Allocation | Job-shop scheduling | unknown | heuristic_only | small_device_demo | 28 | 21.0 | 2019 | UKRI(13), EC(4), NSF(4) |
 | Optimisation | Stochastic Optimisation | Stochastic optimisation under uncertainty | quadratic | proven_with_caveats | theoretical | 15 | 8.0 | 2020 | UKRI(6), DFG(5), EC(2) |
 | Optimisation | Unstructured Search | Unstructured database search | quadratic | proven | small_device_demo | 57 | 26.5 | 1996 | UKRI(26), ANR(14), DFG(13) |
 | Quantum Computing | Benchmarking | Quantum volume and fidelity benchmarking | exponential | proven | production | 137 | 89.0 | 2012 | UKRI(45), DFG(38), BMBF(25) |
 | Quantum Computing | Communication | Quantum network routing and entanglement distribution | exponential | proven | small_device_demo | 409 | 517.5 | 2008 | UKRI(118), BMBF(102), EC(68) |
 | Quantum Computing | Compilation | Quantum circuit optimisation and compilation | polynomial | proven | production | 143 | 72.4 | 2004 | UKRI(57), DFG(26), EC(15) |
-| Quantum Computing | Error Correction | Quantum error correction decoding | exponential | proven | small_device_demo | 354 | 365.8 | 1995 | UKRI(100), EC(97), DFG(53) |
+| Quantum Computing | Error Correction | Quantum error correction decoding | exponential | proven | small_device_demo | 357 | 329.2 | 1995 | UKRI(98), EC(90), DFG(66) |
 | Quantum Computing | Error Mitigation | Quantum error mitigation | polynomial | proven_with_caveats | small_device_demo | 59 | 32.2 | 2017 | UKRI(24), EC(7), NSF(7) |
 | Quantum Computing | Verification | Quantum state tomography and verification | exponential | proven | small_device_demo | 157 | 115.3 | 2020 | UKRI(55), DFG(47), EC(20) |
 | Quantum Simulation | Condensed Matter | Quantum magnetism simulation | superpolynomial | conjectured | small_device_demo | 443 | 210.9 | 2010 | DFG(182), UKRI(98), EC(50) |
@@ -146,14 +146,14 @@ Total addressable funding matched: 10.73B EUR across 11,889 grants.
 | Quantum Simulation | Condensed Matter | Phonon and electron-phonon coupling simulation | superpolynomial | conjectured | theoretical | 51 | 53.8 | 2019 | DFG(40), UKRI(5), EC(2) |
 | Quantum Simulation | Condensed Matter | Bose-Hubbard model simulation | superpolynomial | conjectured | small_device_demo | 70 | 37.1 | 2002 | DFG(33), UKRI(14), EC(8) |
 | Quantum Simulation | Cosmology | Quantum gravity and cosmology simulation | unknown | conjectured | theoretical | 98 | 65.2 | 2016 | UKRI(54), EC(18), DFG(17) |
-| Quantum Simulation | Hamiltonian Simulation | Quantum field theory simulation | exponential | conjectured | small_device_demo | 246 | 169.5 | 2012 | DFG(97), UKRI(81), EC(40) |
 | Quantum Simulation | Hamiltonian Simulation | Time evolution of quantum spin systems | exponential | proven_with_caveats | small_device_demo | 203 | 124.9 | 1996 | DFG(111), UKRI(34), EC(30) |
-| Quantum Simulation | High Energy Physics | Parton shower and scattering simulation | superpolynomial | conjectured | theoretical | 260 | 173.8 | 2017 | UKRI(104), DFG(89), EC(33) |
+| Quantum Simulation | Hamiltonian Simulation | Quantum field theory simulation | exponential | conjectured | small_device_demo | 63 | 30.4 | 2012 | DFG(38), EC(12), UKRI(8) |
+| Quantum Simulation | High Energy Physics | Parton shower and scattering simulation | superpolynomial | conjectured | theoretical | 30 | 18.3 | 2017 | DFG(14), EC(7), UKRI(6) |
 | Quantum Simulation | Many-Body Physics | Ground state preparation of local Hamiltonians | unknown | debated | small_device_demo | 63 | 38.3 | 2014 | DFG(22), UKRI(20), EC(10) |
 | Quantum Simulation | Non-Equilibrium Physics | Quantum quench dynamics | exponential | proven_with_caveats | small_device_demo | 110 | 70.9 | 2011 | DFG(41), UKRI(26), EC(21) |
 | Quantum Simulation | Non-Equilibrium Physics | Thermalisation and many-body localisation | exponential | proven_with_caveats | small_device_demo | 122 | 69.0 | 2014 | DFG(43), EC(30), UKRI(27) |
 | Quantum Simulation | Nuclear Physics | Nuclear scattering cross-section computation | superpolynomial | conjectured | theoretical | 70 | 51.2 | 2019 | DFG(40), UKRI(16), EC(6) |
-| Quantum Simulation | Open Quantum Systems | Lindbladian dynamics simulation | polynomial | proven_with_caveats | theoretical | 267 | 182.6 | 2017 | UKRI(96), DFG(85), EC(47) |
+| Quantum Simulation | Open Quantum Systems | Lindbladian dynamics simulation | polynomial | proven_with_caveats | theoretical | 154 | 83.7 | 2017 | DFG(58), UKRI(45), EC(29) |
 | Telecommunications | Network Optimisation | Wireless network resource allocation | unknown | heuristic_only | numerical_evidence | 156 | 707.1 | 2021 | UKRI(67), EC(42), DFG(16) |
 
 ## Advantage Classification Matrix
@@ -174,10 +174,10 @@ Total addressable funding matched: 10.73B EUR across 11,889 grants.
 | Maturity Level | Count | Total Funding (M EUR) |
 |---------------|-------|-----------------------|
 | production | 4 | 290.6 |
-| industry_pilot | 5 | 342.5 |
-| small_device_demo | 41 | 4,660.5 |
+| industry_pilot | 5 | 242.1 |
+| small_device_demo | 41 | 3,421.9 |
 | numerical_evidence | 18 | 2,225.3 |
-| theoretical | 56 | 3,211.5 |
+| theoretical | 56 | 2,091.5 |
 
 ## Timeline: When Applications Were First Proposed
 

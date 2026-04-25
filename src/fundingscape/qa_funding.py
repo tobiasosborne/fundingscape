@@ -26,16 +26,20 @@ from fundingscape.qa_models import FundingLink
 APPLICATION_KEYWORDS: dict[str, list[str]] = {
     # -- Cryptography --
     "Integer factorisation": [
-        # NB: bare "integer factor" matches lots of pure-math papers; require quantum context
+        # NB: avoid bare RSA patterns — "%RSA%shor%" matched 1,662 records via
+        # "ve-RSA-tile" inside words then "SHOR-t" inside other words. Require
+        # RSA as a token (with leading space or hyphen).
         "%integer factor%quantum%",
         "%quantum%integer factor%",
         "%prime factor%quantum%",
         "%quantum%prime factor%",
         "%shor's algorithm%",
         "%shor algorithm%",
-        "%RSA%quantum comput%",
-        "%quantum%cryptanalysis%",
-        "%post-quantum%cryptograph%",
+        "% RSA %quantum%",
+        "%RSA-%quantum%",
+        "%RSA encrypt%quantum%",
+        "%RSA cryptosystem%",
+        "%cryptanalysis%shor%",
     ],
     "Discrete logarithm over finite fields": [
         "%discrete logarithm%",
@@ -62,14 +66,22 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
 
     # -- Chemistry --
     "Molecular ground state energy estimation": [
-        "%molecular%ground state%quantum%",
-        "%quantum comput%chemistry%",
+        # Tightened: %quantum comput%chemistry% / %quantenchemie% / %elektronische%struktur%quanten%
+        # matched all QC-mentioning chemistry abstracts (~60% FP). Require explicit
+        # ground-state energy estimation methodology.
         "%variational quantum eigensolver%",
         "%VQE%",
         "%quantum phase estimation%molecular%",
+        "%quantum phase estimation%electronic%",
+        "%quantum phase estimation%chemistry%",
+        "%electronic structure%quantum algorithm%",
         "%electronic structure%quantum comput%",
-        "%quantum%chemical%simulation%quantum%",
-        "%quantum algorithm%chemistry%",
+        "%quantum algorithm%electronic structure%",
+        "%quantum algorithm%molecular energy%",
+        "%quantum comput%electronic structure%",
+        "%quantum%simulation%molecular%hamiltonian%",
+        "%variations%quanten%eigensolver%",
+        "%quantenalgorithmus%elektronische struktur%",
     ],
     "Molecular excited state computation": [
         "%excited state%quantum comput%",
@@ -99,12 +111,18 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
         "%quantum%synthesis%planning%",
     ],
     "Catalytic reaction mechanism elucidation": [
-        "%catalys%quantum%comput%",
-        "%catalys%quantum%simulat%",
-        "%reaction mechanism%quantum%",
+        # Tightened: %catalys%quantum%comput% matched all chemistry that uses
+        # quantum methods (~50% FP). Require explicit QC algorithm context.
+        "%catalys%quantum algorithm%",
+        "%catalys%quantum comput%simulat%",
+        "%catalys%quantum phase estimation%",
+        "%catalys%VQE%",
         "%transition state%quantum comput%",
-        "%nitrogen fixation%quantum%",
-        "%CO2 reduction%quantum%",
+        "%transition state%quantum algorithm%",
+        "%nitrogen fixation%quantum comput%",
+        "%CO2 reduction%quantum comput%",
+        "%CO2 reduction%quantum algorithm%",
+        "%reaction%quantum comput%algorithm%",
     ],
     "Vibrational structure and molecular spectra": [
         "%vibrational%quantum comput%",
@@ -116,17 +134,19 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
 
     # -- Materials Science --
     "High-Tc superconductor simulation": [
-        # Tightened: bare "superconductor simulat" matches classical BdG / DFT papers;
-        # require high-Tc or quantum-computing context
+        # Tightened: %quantum%superconducti%simulat% matches superfluid quantum gas
+        # papers etc. Drop %cuprate%quantum% which matches generic quantum-magnetism
+        # papers that tangentially mention cuprates.
         "%high-Tc%superconducti%",
         "%high temperature%superconducti%simulat%",
-        "%high temperature%superconducti%quantum%",
+        "%high temperature%superconducti%quantum simulat%",
         "%hubbard%model%simulat%",
         "%cuprate%simulat%",
-        "%cuprate%quantum%",
-        "%quantum%superconducti%simulat%",
+        "%cuprate%quantum simulat%",
+        "%cuprate%quantum comput%",
         "%doped%hubbard%",
         "%t-J model%",
+        "%Hubbard%model%quantum simulat%",
     ],
     "Battery electrolyte and electrode simulation": [
         "%battery%quantum%comput%",
@@ -166,12 +186,19 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
         "%digital%quantum%simulat%hamilton%",
     ],
     "Quantum field theory simulation": [
-        "%lattice gauge%quantum%",
-        "%quantum%field theory%simulat%",
-        "%quantum%chromodynamics%simulat%",
-        "%QCD%quantum comput%",
+        # Tightened: %QCD%quantum comput% matched dark-matter sensors etc;
+        # require explicit qubit / quantum-computing simulation of QFT.
+        "%lattice gauge%qubit%",
+        "%lattice gauge%quantum simulat%",
+        "%quantum simulation%gauge theory%",
+        "%quantum simulation%QCD%",
+        "%quantum simulation%QED%",
+        "%quantum%field theory%simulat%qubit%",
+        "%QCD%quantum simulat%",
         "%QED%quantum simulat%",
-        "%lattice%gauge%qubit%",
+        "%hadronic%quantum simulat%",
+        "%qubit%lattice gauge%",
+        "%digitization%gauge field%quantum%",
     ],
     "Ground state preparation of local Hamiltonians": [
         "%ground state preparation%quantum%",
@@ -180,11 +207,20 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
         "%quantum comput%ground state%",
     ],
     "Lindbladian dynamics simulation": [
-        "%lindblad%quantum%",
-        "%open quantum system%simulat%",
+        # Tightened: %quantum%noise%simulat% / %open quantum system%simulat% matched
+        # generic noisy-QC papers and broad open-system theory (~40% FP).
+        # Require explicit Lindblad/master-equation/dissipative-simulation context.
+        "%lindblad%quantum%simulat%",
+        "%lindblad%dynamics%",
+        "%lindblad equation%",
+        "%lindbladian%simulat%",
+        "%master equation%quantum%simulat%",
         "%dissipative%quantum%simulat%",
-        "%quantum%noise%simulat%",
-        "%quantum%decoherence%simulat%",
+        "%quantum trajectory%simulat%",
+        "%open quantum system%dynamic%",
+        "%open quantum system%algorithm%",
+        "%offene%quantensystem%dynamik%",
+        "%lindblad%quanten%",
     ],
 
     # -- Optimisation --
@@ -366,9 +402,15 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
         "%quantum%fourier%transform%",
     ],
     "Quantum algorithm for Jones polynomial": [
+        # Tightened: bare %topological%quantum comput% matched all topological QC
+        # research (~95% FP). Require the specific algorithm or knot context.
         "%jones polynomial%",
-        "%knot%invariant%quantum%",
-        "%topological%quantum comput%",
+        "%knot invariant%quantum algorithm%",
+        "%knot invariant%quantum comput%",
+        "%aharonov%jones%landau%",
+        "%anyonic%computation%",
+        "%anyonic%quantum comput%",
+        "%TQFT%quantum algorithm%",
     ],
     "Topological data analysis (Betti numbers)": [
         "%betti number%quantum%",
@@ -388,9 +430,15 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
         "%linear optical%quantum%",
     ],
     "Random circuit sampling": [
+        # Tightened: %quantum%advantage%demonstrat% matched abstracts saying
+        # "quantum technologies take advantage of..." (~70% FP).
         "%random circuit%sampling%",
-        "%quantum%supremacy%",
-        "%quantum%advantage%demonstrat%",
+        "%random circuit sampling%",
+        "%quantum supremacy%",
+        "%computational quantum advantage%",
+        "%quantum advantage%sampling%",
+        "%cross entropy benchmark%",
+        "%XEB%quantum%",
     ],
     "Element distinctness and graph property testing": [
         "%element distinctness%",
@@ -527,13 +575,23 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
 
     # -- Tranche 2: Quantum Computing (new domain) --
     "Quantum error correction decoding": [
+        # Tightened: bare %fault%tolerant%quantum% matches every QC abstract that
+        # mentions FT-QC as motivation. Require error-correction context.
         "%quantum error correct%",
+        "%quantum error-correct%",
+        "%QEC%decod%",
         "%surface code%",
         "%colour code%quantum%",
         "%color code%quantum%",
-        "%fault%tolerant%quantum%",
+        "%fault-tolerant%quantum comput%",
+        "%fault tolerant%quantum comput%",
         "%quantum%LDPC%",
         "%topological code%",
+        "%stabilizer code%",
+        "%subsystem code%",
+        "%Bacon-Shor%",
+        "%bicycle code%",
+        "%Floquet code%",
     ],
     "Quantum circuit optimisation and compilation": [
         "%quantum circuit%optim%",
@@ -581,10 +639,18 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
         "%pyrochlore%quantum%",
     ],
     "Parton shower and scattering simulation": [
-        "%parton%quantum%",
-        "%scattering%quantum%simulat%",
-        "%particle%collision%quantum%",
+        # Tightened: %parton%quantum%, %particle%collision%quantum%, %scattering%quantum%simulat%
+        # matched all particle-physics papers (~50% FP). Require explicit
+        # quantum-computing application to HEP simulation.
+        "%parton shower%quantum%",
+        "%parton shower%qubit%",
+        "%collider%quantum comput%algorithm%",
+        "%collider%quantum simulation%",
         "%high energy physics%quantum comput%",
+        "%LHC%quantum comput%algorithm%",
+        "%scattering amplitude%quantum algorithm%",
+        "%scattering%quantum comput%simulat%",
+        "%particle physics%qubit%simulat%",
     ],
     "Quantum gravity and cosmology simulation": [
         "%quantum gravity%simulat%",
@@ -888,9 +954,20 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
         "%quantum%target%detection%",
     ],
     "Quantum-enhanced GPS-denied navigation": [
-        "%quantum%navigation%",
-        "%quantum%inertial%",
-        "%atom%interferom%navigation%",
+        # Tightened: %quantum%inertial% matched "non-inertial reference frames"
+        # in QM (~30% FP). Require navigation/sensor context.
+        "%quantum%navigation%sensor%",
+        "%quantum%navigation%system%",
+        "%quantum inertial sensor%",
+        "%quantum inertial navigation%",
+        "%cold atom%inertial sensor%",
+        "%atom interferom%navigation%",
+        "%atom interferom%navigat%",
+        "%matter wave%navigation%",
+        "%matter wave%gravimeter%navigation%",
+        "%PNT%quantum%",
+        "%GPS%denied%quantum%",
+        "%GPS-denied%quantum%",
     ],
 
     # -- Tranche 3: Quantum-Inspired --
@@ -935,10 +1012,14 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
 GERMAN_VARIANTS: dict[str, list[str]] = {
     # -- Cryptography --
     "Integer factorisation": [
-        "%faktorisierung%quanten%",
+        # Tightened: bare %faktorisierung%quanten% matches QC wave-function
+        # decomposition. Require integer/RSA/Shor context with token boundaries.
         "%shor%algorithmus%",
-        "%post%quanten%kryptograph%",
-        "%post%quanten%kryptografie%",
+        "%shor%verfahren%quanten%",
+        "% RSA %quanten%",
+        "%RSA-Verschlüsselung%quanten%",
+        "%ganzzahl%faktorisierung%quanten%",
+        "%primfaktor%quanten%",
     ],
     "Discrete logarithm over finite fields": [
         "%diskrete%logarithm%quanten%",
@@ -958,20 +1039,29 @@ GERMAN_VARIANTS: dict[str, list[str]] = {
 
     # -- Chemistry --
     "Molecular ground state energy estimation": [
-        "%molek%grundzustand%quanten%",
-        "%quantenchemie%",
-        "%elektronische%struktur%quanten%",
+        # Tightened German variants: bare "quantenchemie" matches all standard
+        # quantum-chemistry projects (DFT etc), not specifically QC ground state.
+        # Require explicit QC algorithm context.
         "%variations%quanten%eigensolver%",
-        "%quantenalgorithmus%chemie%",
+        "%quantenphasenschätz%molekül%",
+        "%quantenphasenschätz%elektronisch%",
+        "%quantenalgorithmus%elektronisch%",
+        "%quantenalgorithmus%molek%",
+        "%quantenalgorithmus%grundzustand%",
+        "%quantencomput%elektronisch%struktur%",
     ],
     "Molecular excited state computation": [
         "%angeregte%zustand%quanten%",
         "%angeregter%zustand%quanten%",
     ],
     "Catalytic reaction mechanism elucidation": [
-        "%katalys%quanten%",
-        "%reaktions%mechanism%quanten%",
-        "%übergangs%zustand%quanten%",
+        # Tightened: bare %katalys%quanten% matches all standard quantum-chemistry
+        # catalysis (DFT, Lewis-Säure design, etc). Require QC algorithm context.
+        "%katalys%quantencomput%",
+        "%katalys%quantenalgorithm%",
+        "%katalys%quantensimulat%",
+        "%reaktions%mechanism%quantencomput%",
+        "%übergangs%zustand%quantencomput%",
     ],
     "Vibrational structure and molecular spectra": [
         "%schwingungs%quanten%simulat%",
@@ -990,10 +1080,12 @@ GERMAN_VARIANTS: dict[str, list[str]] = {
 
     # -- Materials Science --
     "High-Tc superconductor simulation": [
+        # Bare "supraleiter simulat" matches classical BCS/DFT calculations.
+        # Hochtemperatur is fine — it's specific.
         "%hochtemperatur%supraleit%",
         "%hoch%temperatur%supraleit%",
-        "%supraleiter%simulat%",
-        "%hubbard%modell%quanten%",
+        "%hubbard%modell%quantensimulat%",
+        "%supraleit%quantensimulat%",
     ],
     "Topological phase classification": [
         "%topologische%phase%quanten%",
@@ -1036,9 +1128,12 @@ GERMAN_VARIANTS: dict[str, list[str]] = {
         "%adiabatische%zustandspräparat%",
     ],
     "Lindbladian dynamics simulation": [
-        "%lindblad%quanten%",
-        "%offene%quantensystem%",
+        # Already tightened in the main dict; keep German variants narrow
+        "%lindblad%quanten%simulat%",
+        "%offene%quantensystem%dynamik%",
         "%dissipative%quanten%simulat%",
+        "%quantentrajektorie%",
+        "%mastergleichung%quanten%simulat%",
     ],
     "Quantum magnetism simulation": [
         "%quantenmagnetismus%",
@@ -1085,11 +1180,14 @@ GERMAN_VARIANTS: dict[str, list[str]] = {
 
     # -- Quantum Computing Infrastructure --
     "Quantum error correction decoding": [
+        # Tightened: bare %fehler%toleranter%quanten% would match generic FT-QC
+        # mentions. Require error-correction context.
         "%quantenfehlerkorrektur%",
         "%quanten%fehler%korrektur%",
-        "%fehler%toleranter%quanten%",
-        "%oberflächen%code%quanten%",
+        "%fehlertoleranter%quantencomput%",
+        "%oberflächen%code%",
         "%topologischer%code%",
+        "%stabilisator%code%",
     ],
     "Quantum circuit optimisation and compilation": [
         "%quantenschaltkreis%optim%",
@@ -1233,9 +1331,13 @@ GERMAN_VARIANTS: dict[str, list[str]] = {
         "%quanten%illumination%",
     ],
     "Quantum-enhanced GPS-denied navigation": [
-        "%quanten%navigation%",
-        "%quanten%inertial%",
-        "%atom%interferom%navigat%",
+        "%quanten%navigation%sensor%",
+        "%quanten%navigationssystem%",
+        "%quantensensor%navigation%",
+        "%quanteninertial%",
+        "%atominterferomet%navigation%",
+        "%materiewelle%navigation%",
+        "%kaltatomsensor%navigation%",
     ],
 
     # -- Life Sciences --
