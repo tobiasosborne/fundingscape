@@ -12,13 +12,19 @@ import duckdb
 
 def main() -> None:
     qa = duckdb.connect("data/db/quantum_applications.duckdb", read_only=True)
+    fs = duckdb.connect("data/db/fundingscape.duckdb", read_only=True)
+
+    n_apps = qa.execute("SELECT COUNT(*) FROM application").fetchone()[0]
+    n_grants = fs.execute("SELECT COUNT(*) FROM grant_award_deduped").fetchone()[0]
+    fs.close()
 
     lines: list[str] = []
     lines.append("# Quantum Computing Applications: Funding & Advantage Classification")
     lines.append("")
     lines.append(
-        "Generated from Fundingscape (4,046,972 grants) "
-        "× QC Applications DB (94 applications)."
+        f"Generated from Fundingscape ({n_grants:,} grants) "
+        f"× QC Applications DB ({n_apps} applications). "
+        f"All funding amounts EUR-normalized via ECB annual reference rates."
     )
 
     totals = qa.execute("""

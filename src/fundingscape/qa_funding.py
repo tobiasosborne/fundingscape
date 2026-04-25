@@ -26,8 +26,11 @@ from fundingscape.qa_models import FundingLink
 APPLICATION_KEYWORDS: dict[str, list[str]] = {
     # -- Cryptography --
     "Integer factorisation": [
-        "%integer factor%",
-        "%prime factor%",
+        # NB: bare "integer factor" matches lots of pure-math papers; require quantum context
+        "%integer factor%quantum%",
+        "%quantum%integer factor%",
+        "%prime factor%quantum%",
+        "%quantum%prime factor%",
         "%shor's algorithm%",
         "%shor algorithm%",
         "%RSA%quantum comput%",
@@ -113,11 +116,17 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
 
     # -- Materials Science --
     "High-Tc superconductor simulation": [
-        "%superconductor%simulat%",
-        "%high%temperature%superconducti%quantum%",
-        "%hubbard%model%quantum%",
+        # Tightened: bare "superconductor simulat" matches classical BdG / DFT papers;
+        # require high-Tc or quantum-computing context
+        "%high-Tc%superconducti%",
+        "%high temperature%superconducti%simulat%",
+        "%high temperature%superconducti%quantum%",
+        "%hubbard%model%simulat%",
+        "%cuprate%simulat%",
         "%cuprate%quantum%",
         "%quantum%superconducti%simulat%",
+        "%doped%hubbard%",
+        "%t-J model%",
     ],
     "Battery electrolyte and electrode simulation": [
         "%battery%quantum%comput%",
@@ -127,10 +136,15 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
         "%electrode%quantum%simulat%",
     ],
     "Topological phase classification": [
-        "%topological%phase%quantum%",
-        "%topological%insulator%quantum%simulat%",
-        "%topological%invariant%quantum%comput%",
-        "%topological%quantum%matter%",
+        # Tightened: require explicit classification/computation context, not just any "topological X quantum"
+        "%topological%phase%classification%",
+        "%topological%phase%diagram%quantum%",
+        "%topological%insulator%simulation%",
+        "%topological%insulator%quantum simulat%",
+        "%topological%invariant%computation%",
+        "%topological%invariant%quantum comput%",
+        "%symmetry-protected%topological%",
+        "%topological%phase%quantum simulat%",
     ],
     "FeMo-cofactor (nitrogenase) electronic structure": [
         "%nitrogenase%quantum%",
@@ -141,12 +155,15 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
 
     # -- Quantum Simulation --
     "Time evolution of quantum spin systems": [
+        # Tightened: drop bare "quantum spin chain"/"quantum spin simulat" which match generic spin physics;
+        # require time-evolution/Trotter context
         "%hamiltonian simulation%",
-        "%quantum%spin%simulat%",
         "%trotter%suzuki%",
-        "%quantum%spin%chain%",
-        "%quantum%spin%model%simulat%",
         "%product formula%quantum%",
+        "%time evolution%quantum%spin%",
+        "%real-time%simulation%quantum%spin%",
+        "%digital quantum simulation%spin%",
+        "%digital%quantum%simulat%hamilton%",
     ],
     "Quantum field theory simulation": [
         "%lattice gauge%quantum%",
@@ -238,6 +255,9 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
         "%fraud%detection%quantum%",
         "%credit%scoring%quantum%",
         "%anomaly%detection%quantum%",
+        "%quantum%credit risk%",
+        "%quantum%fraud%",
+        "%quantum%credit%scor%",
     ],
     "Exotic derivative pricing (path-dependent options)": [
         "%exotic%derivative%quantum%",
@@ -248,12 +268,12 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
 
     # -- Machine Learning --
     "Quantum kernel methods / QSVM": [
-        "%quantum kernel%method%",
-        "%quantum kernel%estimat%",
+        "%quantum kernel%",
         "%QSVM%",
         "%quantum%support vector%",
         "%quantum%feature map%",
-        "%quantum%classifier%",
+        "%kernel%quantum%circuit%",
+        "%projected quantum kernel%",
     ],
     "Quantum generative adversarial networks": [
         "%quantum GAN%",
@@ -270,6 +290,9 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
     "Quantum principal component analysis": [
         "%quantum%PCA%",
         "%quantum%principal component%",
+        "%qPCA%",
+        "%quantum dimensionality reduct%",
+        "%density matrix exponentiation%",
     ],
     "Quantum recommendation systems": [
         "%quantum%recommendation%",
@@ -435,6 +458,10 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
         "%bin packing%quantum%",
         "%knapsack%quantum%",
         "%quantum%bin pack%",
+        "%quantum%knapsack%",
+        "%knapsack%QAOA%",
+        "%knapsack%quantum anneal%",
+        "%bin packing%QAOA%",
     ],
     "Maximum independent set": [
         "%maximum independent set%",
@@ -442,21 +469,35 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
         "%independent set%QAOA%",
         "%independent set%quantum anneal%",
         "%independent set%quantum optim%",
+        "%MIS%QAOA%",
+        "%independent set%quantum%",
+        "%quantum%independent set%",
     ],
     "Set cover and minimum vertex cover": [
         "%set cover%quantum%",
         "%vertex cover%quantum%",
+        "%quantum%set cover%",
+        "%quantum%vertex cover%",
+        "%set cover%QAOA%",
+        "%vertex cover%QAOA%",
+        "%minimum vertex cover%",
     ],
     "Maximum flow and minimum cut": [
         "%maximum flow%quantum%",
         "%minimum cut%quantum%",
         "%network flow%quantum%",
         "%max-flow%quantum%",
+        "%quantum%max%flow%",
+        "%quantum%min%cut%",
+        "%quantum algorithm%network flow%",
     ],
     "Gradient estimation and optimisation": [
         "%quantum%gradient%estimation%",
         "%jordan%gradient%quantum%",
         "%quantum%gradient%descent%",
+        "%gradient%quantum%algorithm%",
+        "%parameter shift%quantum%",
+        "%quantum%natural gradient%",
     ],
 
     # -- Tranche 2: Cryptography (expanded) --
@@ -523,10 +564,16 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
 
     # -- Tranche 2: Quantum Simulation (expanded) --
     "Quantum magnetism simulation": [
-        "%quantum%magnet%simulat%",
-        "%spin liquid%quantum%",
-        "%frustrated magnet%quantum%",
-        "%quantum%spin liquid%",
+        # Tightened: drop bare "quantum magnet simulat" (matches generic spintronics);
+        # require explicit quantum-magnetism / spin-liquid / frustration concepts
+        "%quantum magnetism%",
+        "%spin liquid%",
+        "%frustrated magnet%",
+        "%kitaev%model%",
+        "%quantum%antiferromagnet%simulat%",
+        "%dimerised%magnet%quantum%",
+        "%kagome%quantum%",
+        "%pyrochlore%quantum%",
     ],
     "Parton shower and scattering simulation": [
         "%parton%quantum%",
@@ -569,8 +616,10 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
     ],
     "Quantum anomaly detection": [
         "%quantum%anomaly detect%",
+        "%anomaly detect%quantum%",
         "%quantum%autoencoder%",
         "%quantum%outlier%",
+        "%quantum%novelty detect%",
     ],
 
     # -- Tranche 2: Finance (expanded) --
@@ -578,11 +627,16 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
         "%market making%quantum%",
         "%trade execution%quantum%",
         "%quantum%trading%",
+        "%quantum%market making%",
+        "%algorithmic trading%quantum%",
     ],
     "Financial clearing and netting optimisation": [
         "%clearing%quantum%",
         "%netting%quantum%",
         "%settlement%quantum%",
+        "%quantum%clearing%",
+        "%quantum%netting%",
+        "%payment%netting%quantum%",
     ],
 
     # -- Tranche 2: Materials & Chemistry (expanded) --
@@ -608,10 +662,17 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
         "%flight%gate%quantum%",
         "%airline%schedule%quantum%",
         "%aircraft%assign%quantum%",
+        "%quantum%flight%schedul%",
+        "%airport%quantum%optim%",
+        "%aviation%quantum%optim%",
     ],
     "Warehouse picking and layout optimisation": [
         "%warehouse%quantum%",
         "%picking%optim%quantum%",
+        "%quantum%warehouse%",
+        "%order picking%quantum%",
+        "%warehouse layout%quantum%",
+        "%logistics warehouse%quantum%",
     ],
 
     # -- Tranche 2: Energy (expanded) --
@@ -685,20 +746,32 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
         "%fidelity estimation%",
     ],
     "Quantum network routing and entanglement distribution": [
-        "%quantum network%",
+        # Tightened: bare "quantum network" matches all neural-net / generic networking papers;
+        # require routing/distribution/internet/repeater context
+        "%quantum%network%routing%",
         "%quantum internet%",
         "%entanglement distribution%",
         "%quantum repeater%",
+        "%quantum%key%distribution%network%",
+        "%quantum communication network%",
+        "%entanglement%routing%",
+        "%QKD%network%",
     ],
 
     # -- Tranche 3: Optimisation (more niche) --
     "Minimum spanning tree and Steiner tree": [
         "%spanning tree%quantum%",
         "%steiner tree%quantum%",
+        "%quantum%spanning tree%",
+        "%quantum%steiner%",
+        "%minimum spanning%QAOA%",
     ],
     "Facility location and p-median": [
         "%facility location%quantum%",
         "%p-median%quantum%",
+        "%quantum%facility location%",
+        "%facility location%QAOA%",
+        "%facility location%quantum anneal%",
     ],
     "Stochastic optimisation under uncertainty": [
         "%stochastic optim%quantum%",
@@ -740,7 +813,10 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
     # -- Tranche 3: Machine Learning (gaps) --
     "Quantum transfer learning": [
         "%quantum%transfer learn%",
+        "%transfer learning%quantum%",
         "%hybrid%classical%quantum%neural%",
+        "%pretrain%quantum%neural%",
+        "%fine%tun%quantum%circuit%",
     ],
     "Quantum data loading and state preparation": [
         "%state preparation%quantum%",
@@ -829,6 +905,355 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# German keyword variants.
+#
+# DFG GEPRIS (152K records) and BMBF Förderkatalog (268K records) are mostly
+# German. Without German patterns, these 420K records contribute almost
+# nothing to QA matching. Patterns merged into APPLICATION_KEYWORDS at import.
+#
+# Naming conventions:
+#   quantum         → quanten (Quantencomputing, Quantenchemie)
+#   simulation      → simulation (loanword, identical)
+#   molecular       → molekül / molekular
+#   electronic      → elektronisch / elektronen
+#   ground state    → grundzustand
+#   superconductor  → supraleiter / supraleitung
+#   algorithm       → algorithmus / algorithmen
+#   optimization    → optimierung
+#   machine learning → maschinelles lernen / maschinenlernen
+#   topological     → topologisch
+#   many-body       → vielteilchen
+#   lattice         → gitter
+# ---------------------------------------------------------------------------
+
+GERMAN_VARIANTS: dict[str, list[str]] = {
+    # -- Cryptography --
+    "Integer factorisation": [
+        "%faktorisierung%quanten%",
+        "%shor%algorithmus%",
+        "%post%quanten%kryptograph%",
+        "%post%quanten%kryptografie%",
+    ],
+    "Discrete logarithm over finite fields": [
+        "%diskrete%logarithm%quanten%",
+    ],
+    "Symmetric key search": [
+        "%grover%suche%",
+        "%grover%algorithmus%",
+    ],
+    "Lattice problem solving (LWE/SVP)": [
+        "%gitter%kryptograph%",
+        "%gitter%basierte%krypto%",
+    ],
+    "Quantum random number generation": [
+        "%quanten%zufallszahl%",
+        "%quanten%zufallsgenerator%",
+    ],
+
+    # -- Chemistry --
+    "Molecular ground state energy estimation": [
+        "%molek%grundzustand%quanten%",
+        "%quantenchemie%",
+        "%elektronische%struktur%quanten%",
+        "%variations%quanten%eigensolver%",
+        "%quantenalgorithmus%chemie%",
+    ],
+    "Molecular excited state computation": [
+        "%angeregte%zustand%quanten%",
+        "%angeregter%zustand%quanten%",
+    ],
+    "Catalytic reaction mechanism elucidation": [
+        "%katalys%quanten%",
+        "%reaktions%mechanism%quanten%",
+        "%übergangs%zustand%quanten%",
+    ],
+    "Vibrational structure and molecular spectra": [
+        "%schwingungs%quanten%simulat%",
+        "%molekülspektr%quanten%",
+        "%vibronische%quanten%",
+    ],
+    "Photosynthetic energy transfer simulation": [
+        "%photosynthes%quanten%",
+        "%lichtsammel%quanten%",
+    ],
+    "Open-shell and radical species computation": [
+        "%offene%schale%quanten%",
+        "%multireferenz%quanten%",
+        "%radikal%quanten%",
+    ],
+
+    # -- Materials Science --
+    "High-Tc superconductor simulation": [
+        "%hochtemperatur%supraleit%",
+        "%hoch%temperatur%supraleit%",
+        "%supraleiter%simulat%",
+        "%hubbard%modell%quanten%",
+    ],
+    "Topological phase classification": [
+        "%topologische%phase%quanten%",
+        "%topologische%isolator%quanten%",
+        "%topologische%materie%",
+        "%topologischer%isolator%quanten%",
+    ],
+    "Battery electrolyte and electrode simulation": [
+        "%batterie%quanten%",
+        "%elektrolyt%quanten%",
+        "%lithium%quanten%simulat%",
+    ],
+    "Photovoltaic material simulation": [
+        "%photovoltaik%quanten%",
+        "%solarzelle%quanten%",
+        "%perowskit%quanten%",
+    ],
+    "Semiconductor defect simulation": [
+        "%defekt%quanten%comput%",
+        "%halbleiter%defekt%quanten%",
+        "%punktdefekt%quanten%",
+        "%NV%zentr%quanten%",
+        "%stickstoff%fehlstelle%",
+    ],
+
+    # -- Quantum Simulation --
+    "Time evolution of quantum spin systems": [
+        "%hamilton%simulation%",
+        "%spinsystem%quanten%",
+        "%quanten%spinkette%",
+        "%quanten%spinmodell%",
+    ],
+    "Quantum field theory simulation": [
+        "%quantenfeld%theorie%simulat%",
+        "%gittereich%quanten%",
+        "%quantenchromodynamik%simulat%",
+    ],
+    "Ground state preparation of local Hamiltonians": [
+        "%grundzustand%präparat%quanten%",
+        "%adiabatische%zustandspräparat%",
+    ],
+    "Lindbladian dynamics simulation": [
+        "%lindblad%quanten%",
+        "%offene%quantensystem%",
+        "%dissipative%quanten%simulat%",
+    ],
+    "Quantum magnetism simulation": [
+        "%quantenmagnetismus%",
+        "%quanten%magnet%simulat%",
+        "%spinflüssigkeit%quanten%",
+        "%frustrierte%magnet%quanten%",
+    ],
+    "Bose-Hubbard model simulation": [
+        "%bose%hubbard%",
+        "%suprafluid%mott%",
+    ],
+    "Phonon and electron-phonon coupling simulation": [
+        "%elektron%phonon%quanten%",
+        "%polaron%quanten%",
+    ],
+    "Quantum quench dynamics": [
+        "%quantenquench%",
+        "%nichtgleichgewicht%quanten%simulat%",
+    ],
+    "Thermalisation and many-body localisation": [
+        "%vielteilchen%lokalisier%",
+        "%thermalisier%quanten%",
+    ],
+    "Quantum Hall effect simulation": [
+        "%quanten%hall%simulat%",
+        "%fraktionaler%quanten%hall%",
+        "%anyon%quanten%",
+    ],
+    "Quantum gravity and cosmology simulation": [
+        "%quantengravitat%simulat%",
+        "%schleifen%quantengravitat%",
+        "%holograph%quanten%",
+    ],
+    "Parton shower and scattering simulation": [
+        "%parton%quanten%",
+        "%streu%quanten%simulat%",
+        "%hochenergiephysik%quantencomput%",
+    ],
+    "Nuclear structure calculation": [
+        "%kern%struktur%quantencomput%",
+        "%kern%simulat%quanten%",
+        "%atomkern%quanten%",
+    ],
+
+    # -- Quantum Computing Infrastructure --
+    "Quantum error correction decoding": [
+        "%quantenfehlerkorrektur%",
+        "%quanten%fehler%korrektur%",
+        "%fehler%toleranter%quanten%",
+        "%oberflächen%code%quanten%",
+        "%topologischer%code%",
+    ],
+    "Quantum circuit optimisation and compilation": [
+        "%quantenschaltkreis%optim%",
+        "%quanten%compiler%",
+        "%gattersynthese%quanten%",
+    ],
+    "Quantum volume and fidelity benchmarking": [
+        "%quantenvolumen%",
+        "%quanten%benchmark%",
+        "%randomisier%benchmark%",
+    ],
+    "Quantum error mitigation": [
+        "%fehlerminderung%quanten%",
+        "%fehler%mitigat%quanten%",
+        "%null%rausch%extrapol%",
+    ],
+    "Quantum state tomography and verification": [
+        "%quantentomograph%",
+        "%klassische%schatten%",
+        "%fidelity%schätz%quanten%",
+    ],
+    "Quantum network routing and entanglement distribution": [
+        "%quantennetz%",
+        "%quanteninternet%",
+        "%verschränkungs%verteil%",
+        "%quantenrepeater%",
+    ],
+
+    # -- Optimisation --
+    "Max-Cut and graph partitioning": [
+        "%max%cut%quanten%",
+        "%graph%partition%quanten%",
+        "%QAOA%",
+    ],
+    "Boolean satisfiability (SAT)": [
+        "%erfüllbarkeit%quanten%",
+        "%boolesche%quanten%",
+    ],
+    "Travelling salesman and vehicle routing": [
+        "%handlungsreisend%quanten%",
+        "%fahrzeug%routing%quanten%",
+    ],
+    "Convex optimisation / SDP solving": [
+        "%semidefinit%quanten%",
+        "%konvex%optim%quanten%",
+    ],
+    "Job-shop scheduling": [
+        "%ablauf%planung%quanten%",
+        "%jobshop%quanten%",
+    ],
+    "Quadratic unconstrained binary optimisation (QUBO)": [
+        "%ising%formulier%quanten%",
+        "%quanten%annealing%optim%",
+    ],
+
+    # -- Machine Learning --
+    "Quantum neural networks / variational classifiers": [
+        "%quanten%neuronal%",
+        "%variations%klassifikator%quanten%",
+        "%parametrisierter%quantenschaltkreis%",
+    ],
+    "Quantum kernel methods / QSVM": [
+        "%quantenkern%method%",
+        "%quanten%support%vektor%",
+    ],
+    "Quantum-enhanced reinforcement learning": [
+        "%quanten%verstärkung%lern%",
+        "%quanten%bestärk%lern%",
+    ],
+
+    # -- Linear Algebra --
+    "Solving sparse linear systems (HHL)": [
+        "%quanten%lineare%system%",
+        "%quanten%lineare%gleichung%",
+    ],
+    "Quantum ODE/PDE solvers": [
+        "%quanten%differential%gleichung%",
+        "%quanten%partielle%differential%",
+    ],
+    "Quantum phase estimation": [
+        "%phasen%schätz%quanten%",
+        "%eigenwert%quanten%algorithm%",
+    ],
+
+    # -- Finance --
+    "Monte Carlo option pricing": [
+        "%options%bewert%quanten%",
+        "%quanten%monte%carlo%finanz%",
+        "%derivat%bewertung%quanten%",
+    ],
+    "Portfolio optimisation": [
+        "%portfolio%optim%quanten%",
+        "%vermögens%allokat%quanten%",
+        "%markowitz%quanten%",
+    ],
+
+    # -- Mathematics --
+    "Period finding and hidden subgroup problem": [
+        "%verborgene%untergruppe%",
+        "%verborgenes%untergruppen%",
+        "%quanten%fourier%transform%",
+        "%periodenfind%quanten%",
+    ],
+    "Quantum algorithm for Jones polynomial": [
+        "%jones%polynom%",
+        "%knoten%invariant%quanten%",
+    ],
+
+    # -- Energy --
+    "Plasma confinement simulation": [
+        "%plasma%quantencomput%",
+        "%fusion%quantencomput%",
+        "%tokamak%quantencomput%",
+    ],
+    "Power grid unit commitment": [
+        "%stromnetz%quanten%",
+        "%energie%netz%quanten%",
+        "%netz%dispatch%quanten%",
+    ],
+
+    # -- Engineering --
+    "CFD via quantum linear algebra": [
+        "%strömungs%dynamik%quanten%",
+        "%navier%stokes%quanten%",
+    ],
+    "Finite element analysis via quantum linear solvers": [
+        "%finite%elemente%quanten%",
+        "%struktur%mechanik%quanten%",
+    ],
+
+    # -- Earth Science --
+    "Climate and weather simulation": [
+        "%klima%quantencomput%",
+        "%wetter%quantencomput%",
+        "%atmosph%quantensim%",
+    ],
+
+    # -- Defence --
+    "Quantum radar and target detection": [
+        "%quantenradar%",
+        "%quanten%illumination%",
+    ],
+    "Quantum-enhanced GPS-denied navigation": [
+        "%quanten%navigation%",
+        "%quanten%inertial%",
+        "%atom%interferom%navigat%",
+    ],
+
+    # -- Life Sciences --
+    "Protein folding energy landscape exploration": [
+        "%proteinfaltung%quanten%",
+        "%protein%konformation%quanten%",
+        "%protein%struktur%quantencomput%",
+    ],
+    "Sequence alignment and genomic analysis": [
+        "%sequenz%alignment%quanten%",
+        "%genom%quantencomput%",
+    ],
+}
+
+# Merge German variants into main keyword dict
+for _app, _de_patterns in GERMAN_VARIANTS.items():
+    if _app in APPLICATION_KEYWORDS:
+        APPLICATION_KEYWORDS[_app] = APPLICATION_KEYWORDS[_app] + _de_patterns
+    else:
+        # New application not in main dict — add it
+        APPLICATION_KEYWORDS[_app] = _de_patterns
+
+
 def _build_where_clause(patterns: list[str]) -> str:
     """Build a SQL WHERE clause from ILIKE patterns.
 
@@ -874,11 +1299,11 @@ def compute_funding_links(
         where = _build_where_clause(patterns)
         query_pattern = " OR ".join(patterns)
 
-        # Count and sum funding
+        # Count and sum funding (EUR-normalized; falls back to DFG estimates which are already EUR)
         row = fs_conn.execute(f"""
             SELECT
                 COUNT(*) as cnt,
-                COALESCE(SUM(COALESCE(total_funding, total_funding_estimated, 0)), 0) as funding
+                COALESCE(SUM(COALESCE(total_funding_eur, total_funding_estimated, 0)), 0) as funding
             FROM grant_award_deduped
             WHERE {where}
         """).fetchone()

@@ -21,8 +21,9 @@ Built a complete research funding intelligence system from scratch, then hardene
 15. **Phase 14**: PI and institution enrichment — downloaded H2020 ERC PI XLSX (7,811 PI names added to CORDIS records); expanded GEPRIS institution parser to extract from "Host", "Co-Applicant Institution", etc. (8,817 additional institutions)
 16. **Phase 15**: ROR integration — downloaded ROR v2.2 data dump (121,920 organizations), built offline matching index with exact + fuzzy (RapidFuzz) matching, matched 2,659 unique institution names → 80,780 grant records with canonical `ror_id`. Built GEPRIS person page scraper and Förderkatalog detail page scraper (ready to run).
 17. **Phase 16**: Förderkatalog detail scrape completed — fetched all 268,164 detail pages (240K cached from prior partial run + 28K new). Extracted 45,717 abstracts total (17% of FK grants; most older entries lack descriptions). 9 failures, fully checkpointed and resumable.
+18. **Phase 17**: Data quality uplevel — built `scripts/quality_audit.py` (reusable per-source NULL/anomaly/dedup audit). Built `fundingscape.currency` module with ECB annual reference rates 1995-2026 for 15 currencies + 22 unit tests; added `total_funding_eur` column to `grant_award` and populated 2,327,684 rows. Fixed 3 EIC SME outliers (€2.5B → null, clear 1000x decimal-shift errors). Extended QA matcher with 110+ German keyword variants across 50+ chemistry/materials/QC apps; tightened 6 over-matched patterns; broadened 13 under-matched. QA matches: 5,633 → 6,351 (+12.7%); unmatched apps: 7 → 3 (corpus gaps in Quantum kernels / Bin packing / Warehouse picking).
 
-Final state: **4,046,972 unique grants** (4,132,533 total, 85,351 deduped, 210 aggregates), **7,194 calls**, **195 tests**, **~1,340 MB database**.
+Final state: **4,046,972 unique grants** (4,132,533 total, 85,351 deduped, 210 aggregates), **7,194 calls**, **252 tests** (currency + scaffold), **~1,340 MB database**, **1.16T EUR canonical funding (EUR-normalized)**.
 
 ---
 
