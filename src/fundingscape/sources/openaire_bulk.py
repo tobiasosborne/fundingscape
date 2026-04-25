@@ -56,7 +56,7 @@ def _extract_to_csv(tar_path: str, csv_path: str) -> int:
             "pi_country", "start_date", "end_date",
             "total_funding", "currency", "status",
             "funder_short", "funder_name", "funding_stream",
-            "keywords",
+            "keywords", "abstract",
         ])
 
         with tarfile.open(tar_path, "r") as tar:
@@ -141,19 +141,26 @@ def _extract_to_csv(tar_path: str, csv_path: str) -> int:
                         # Source ID
                         sid = f"oaire_{funder_short}_{project_id}" if project_id and project_id != "unidentified" else f"oaire_{openaire_id[:24]}"
 
+                        # Abstract — present in ~11% of records (UKRI/ARC 100%, EC 78%, etc.)
+                        # See scripts/enrich_openaire_abstracts.py for one-shot backfill of cached tar
+                        abstract = proj.get("summary") or ""
+                        if abstract:
+                            abstract = " ".join(abstract.split())[:10000]
+
                         # Sanitize text fields: remove tabs/newlines
                         clean_title = title.replace("\t", " ").replace("\n", " ").replace("\r", "")[:500]
                         clean_acronym = (proj.get("acronym") or "").replace("\t", " ")
                         clean_funder = funder_name.replace("\t", " ")[:200]
                         clean_stream = funding_stream.replace("\t", " ")[:200]
                         clean_kw = keywords.replace("\t", " ").replace("\n", " ")[:300]
+                        clean_abstract = abstract.replace("\t", " ")
 
                         writer.writerow([
                             sid, clean_title, project_id, clean_acronym,
                             country or "", start_date or "", end_date or "",
                             amount or "", currency, status,
                             funder_short, clean_funder, clean_stream,
-                            clean_kw,
+                            clean_kw, clean_abstract,
                         ])
                         count += 1
 
@@ -178,7 +185,7 @@ def load_csv_to_db(
     # Load via DuckDB's CSV reader directly into the table
     conn.execute(f"""
         INSERT INTO grant_award (
-            id, project_title, project_id, acronym,
+            id, project_title, project_id, acronym, abstract,
             pi_country, start_date, end_date,
             total_funding, currency, status,
             topic_keywords, source, source_id
@@ -188,6 +195,7 @@ def load_csv_to_db(
             project_title,
             project_id,
             CASE WHEN acronym = '' THEN NULL ELSE acronym END,
+            CASE WHEN abstract = '' THEN NULL ELSE abstract END,
             CASE WHEN pi_country = '' THEN NULL ELSE pi_country END,
             CASE WHEN start_date = '' THEN NULL ELSE CAST(start_date AS DATE) END,
             CASE WHEN end_date = '' THEN NULL ELSE CAST(end_date AS DATE) END,
@@ -217,7 +225,8 @@ def load_csv_to_db(
                 'funder_short': 'VARCHAR',
                 'funder_name': 'VARCHAR',
                 'funding_stream': 'VARCHAR',
-                'keywords': 'VARCHAR'
+                'keywords': 'VARCHAR',
+                'abstract': 'VARCHAR'
             }}
         )
     """)

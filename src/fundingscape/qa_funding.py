@@ -483,13 +483,18 @@ APPLICATION_KEYWORDS: dict[str, list[str]] = {
         "%minimum vertex cover%",
     ],
     "Maximum flow and minimum cut": [
+        # NB: avoid patterns like %quantum%max%flow% — they false-match
+        # "quantum gas in maximum flow conditions" etc. Require the algorithmic
+        # phrase as a unit.
         "%maximum flow%quantum%",
         "%minimum cut%quantum%",
-        "%network flow%quantum%",
         "%max-flow%quantum%",
-        "%quantum%max%flow%",
-        "%quantum%min%cut%",
-        "%quantum algorithm%network flow%",
+        "%min-cut%quantum%",
+        "%quantum%maximum flow%",
+        "%quantum%minimum cut%",
+        "%quantum%max-flow%",
+        "%quantum%min-cut%",
+        "%network flow%quantum algorithm%",
     ],
     "Gradient estimation and optimisation": [
         "%quantum%gradient%estimation%",
@@ -1268,6 +1273,50 @@ def _build_where_clause(patterns: list[str]) -> str:
     return " OR ".join(conditions)
 
 
+def _all_patterns_union() -> list[str]:
+    """Flat list of all distinct ILIKE patterns across all applications.
+
+    Used to pre-filter the 4M-row table down to ~50K candidates in one pass.
+    """
+    seen: set[str] = set()
+    out: list[str] = []
+    for patterns in APPLICATION_KEYWORDS.values():
+        for p in patterns:
+            if p not in seen:
+                seen.add(p)
+                out.append(p)
+    return out
+
+
+def _build_candidate_table(fs_conn: duckdb.DuckDBPyConnection) -> int:
+    """Pre-filter grant_award_deduped to grants matching ANY app pattern.
+
+    Single full-table scan with one giant OR clause. Reduces 4M rows to
+    a small candidate set (~30-100K) that all per-app queries then run
+    against. Cuts total runtime from ~16min to ~30s.
+
+    Returns the number of candidate rows.
+    """
+    patterns = _all_patterns_union()
+    # Build the global OR clause matching title or abstract
+    conds = []
+    for p in patterns:
+        safe = p.replace("'", "''")
+        conds.append(f"project_title ILIKE '{safe}'")
+        conds.append(f"abstract ILIKE '{safe}'")
+    where = " OR ".join(conds)
+
+    fs_conn.execute("DROP TABLE IF EXISTS _qa_candidates")
+    fs_conn.execute(f"""
+        CREATE TEMP TABLE _qa_candidates AS
+        SELECT id, project_title, abstract,
+               total_funding_eur, total_funding_estimated, funder_id
+        FROM grant_award_deduped
+        WHERE {where}
+    """)
+    return fs_conn.execute("SELECT COUNT(*) FROM _qa_candidates").fetchone()[0]
+
+
 def compute_funding_links(
     fundingscape_path: str | None = None,
     qa_path: str | None = None,
@@ -1276,10 +1325,19 @@ def compute_funding_links(
     """Query fundingscape for each application and store TAM results.
 
     Returns a dict of {app_name: {grant_count, total_funding_eur, top_funders}}.
+
+    Performance: pre-filters the full grant table once into a small candidate
+    table, then runs per-app queries against that. ~30s vs ~16min naive.
     """
     fs_path = fundingscape_path or DB_PATH
     fs_conn = duckdb.connect(fs_path, read_only=True)
     qa_conn = get_qa_connection(qa_path)
+
+    if verbose:
+        print("Building candidate table (one full table scan)...")
+    n_candidates = _build_candidate_table(fs_conn)
+    if verbose:
+        print(f"  → {n_candidates:,} candidate grants")
 
     # Get all applications
     apps = qa_conn.execute(
@@ -1299,31 +1357,36 @@ def compute_funding_links(
         where = _build_where_clause(patterns)
         query_pattern = " OR ".join(patterns)
 
-        # Count and sum funding (EUR-normalized; falls back to DFG estimates which are already EUR)
-        row = fs_conn.execute(f"""
+        # Count + sum funding + top funders, all from the small candidate table.
+        # Single CTE so only one scan of _qa_candidates per app.
+        result = fs_conn.execute(f"""
+            WITH matched AS (
+                SELECT total_funding_eur, total_funding_estimated, funder_id
+                FROM _qa_candidates
+                WHERE {where}
+            ),
+            funder_counts AS (
+                SELECT funder_id, COUNT(*) c FROM matched GROUP BY funder_id
+            ),
+            top_funders AS (
+                SELECT string_agg(
+                    COALESCE(f.short_name, 'Unknown') || '(' || fc.c || ')',
+                    ', '
+                    ORDER BY fc.c DESC
+                ) AS top_str
+                FROM (SELECT funder_id, c FROM funder_counts ORDER BY c DESC LIMIT 5) fc
+                LEFT JOIN funder f ON fc.funder_id = f.id
+            )
             SELECT
-                COUNT(*) as cnt,
-                COALESCE(SUM(COALESCE(total_funding_eur, total_funding_estimated, 0)), 0) as funding
-            FROM grant_award_deduped
-            WHERE {where}
+                (SELECT COUNT(*) FROM matched) AS cnt,
+                (SELECT COALESCE(SUM(COALESCE(total_funding_eur, total_funding_estimated, 0)), 0)
+                 FROM matched) AS funding,
+                (SELECT top_str FROM top_funders) AS top
         """).fetchone()
 
-        grant_count = row[0]
-        total_funding = row[1]
-
-        # Top funders (by grant count)
-        top_funders_rows = fs_conn.execute(f"""
-            SELECT f.short_name, COUNT(*) as cnt
-            FROM grant_award_deduped g
-            LEFT JOIN funder f ON g.funder_id = f.id
-            WHERE {where}
-            GROUP BY f.short_name
-            ORDER BY cnt DESC
-            LIMIT 5
-        """).fetchall()
-        top_funders = ", ".join(
-            f"{r[0] or 'Unknown'}({r[1]})" for r in top_funders_rows
-        )
+        grant_count = result[0]
+        total_funding = result[1]
+        top_funders = result[2] or ""
 
         # Store in funding_link
         link = FundingLink(
