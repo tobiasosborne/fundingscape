@@ -51,63 +51,32 @@ Full scraper at `src/fundingscape/sources/foerderkatalog.py`. Reverse-engineered
 
 ---
 
-## Medium-Term Steps (Next Session)
+## Open Issues (Next Session)
 
-### 5. Migrate OpenAIRE to Graph API v1
-**Issue**: Part of `datapipeline-7o2` (closed, but could be improved)
-**Impact**: Cleaner data, cursor-based pagination, 7200 req/hr with auth
+Run `bd list --status=open` for the live list. As of 2026-04-25:
 
-The current API integration uses the legacy search API. The Graph API v1 at `https://api.openaire.eu/graph/v1/projects` has better JSON structure and cursor-based pagination for >10K results. Register for a token at `https://develop.openaire.eu/personal-token` for 120x higher rate limit.
+### From Phases 17-19 quality work
+- **P1 NEW** — Second FP-audit pass on 7 still-over-matched apps (Quantum magnetism 443, High-Tc 421, Quantum network routing 409, QEC 357, Monte Carlo 212, Photosynthetic 211, Time evolution 203). Some are real (UKRI dominance is genuine), some may need further tightening. Use `scripts/sample_qa_matches.py`.
+- **P1 NEW perf** — `compute_funding_links()` takes ~13 min because the candidate-table pre-filter has 1400+ ILIKE patterns in one OR. Could batch into ~30 chunks for 5-10x speedup, or use DuckDB FTS. Bottleneck for iteration speed.
+- **P2 `datapipeline-ty8`** — 494K canonical groups share title+year+funder. Top samples are real series (BMBF EV-charging x1860 in 2022, NIH "biomedical research support" x1260 in 1979). Need sampling pass to classify before deciding whether to dedup.
+- **P3 `datapipeline-612`** — Map ~18K unmapped OpenAIRE funder codes (FCF, CF, IBF, LF, RIF, KF, VE, SK, KAUTE, VF, CHIST-ERA, etc.). Mostly small national foundations.
 
-### 6. Batch Insert Optimization
-**Issue**: `datapipeline-tbc`
-**Effort**: 1 hour
-**Impact**: Reduce CORDIS load time from ~15 min to ~30 sec
+### From earlier pre-Phase-17 backlog
+- `datapipeline-tbc` — Batch-insert CORDIS (1h, ~15 min → 30 sec via TSV staging like `openaire_bulk.py`)
+- `datapipeline-agx` — Crossref Funder Registry integration (1h, normalize funder names; ROR done in Phase 15)
+- `datapipeline-7e8` — Simpler.Grants.gov API for DoD quantum BAAs (1.5h, replace manual AFOSR/ONR/ARL YAML)
+- National funder APIs (1h each): UKRI Gateway to Research (`datapipeline-4zd`), SNSF P3 (`fgi`), ANR (`4gu`), FWF (`lbt`), NSF Award Search (`r5z`), DOE/OSTI (`idl`), SWECRIS (`fur`)
+- Supplementary sources: ESA tenders (`gcu`), Simons Foundation (`lb0`), Japan KAKEN (`ttf`), Keep.eu (`tvi`), CORDIS SPARQL (`y7p`)
 
-Currently CORDIS uses row-by-row upserts (slow for 55K records). Convert to the same TSV staging + DuckDB bulk load approach used by `openaire_bulk.py`. The pattern is proven and loads 3.7M records in 10 seconds.
-
-### 7. Crossref + ROR Integration
-**Issue**: `datapipeline-agx`
-**Effort**: 1 hour
-**Impact**: Normalise funder and institution names across all sources
-
-Currently "LEIBNIZ UNIVERSITAET HANNOVER" vs "Leibniz Universität Hannover" vs "LUH" are different strings. ROR (https://ror.org/) provides canonical institution IDs. Crossref Funder Registry provides canonical funder IDs. Both have free REST APIs.
-
-### 8. Simpler.Grants.gov API
-**Issue**: `datapipeline-7e8`
-**Effort**: 1.5 hours
-**Impact**: Replace manual AFOSR/ONR/ARL entries with live API data
-
-Endpoint: `POST https://api.simpler.grants.gov/v1/opportunities/search`
-Free API key, 60 req/min, 10K req/day. Search for DoD quantum BAAs automatically.
-
----
-
-## Longer-Term Roadmap
-
-### National Funder APIs (each ~1 hour)
-These funders have proper APIs and would add rich data:
-- **UKRI Gateway to Research** (`datapipeline-4zd`): REST API, JSON/XML, best national funder API
-- **SNSF P3** (`datapipeline-fgi`): REST API, JSON, Swiss quantum
-- **ANR** (`datapipeline-4gu`): Recently launched API, French Plan Quantique
-- **FWF** (`datapipeline-lbt`): Research Radar API, Austrian quantum
-- **NSF Award Search** (`datapipeline-r5z`): JSON API, US quantum
-- **DOE/OSTI** (`datapipeline-idl`): OSTI API, US quantum centres
-- **SWECRIS** (`datapipeline-fur`): Swedish API, Wallenberg WACQT
-
-### Supplementary Sources
-- **ESA tenders** (`datapipeline-gcu`): Quantum satellites, QKD, quantum clocks
-- **Simons Foundation** (`datapipeline-lb0`): Major quantum physics funder
-- **Japan KAKEN** (`datapipeline-ttf`): 500K grants, Moonshot quantum programme
-- **Keep.eu** (`datapipeline-tvi`): Interreg cross-border quantum projects
-- **CORDIS SPARQL** (`datapipeline-y7p`): Network mapping, federated Wikidata queries
-
-### Enrichment & Analysis
-- ~~**Deduplication**: Same grants appear in CORDIS and OpenAIRE — deduplicate by project code~~ **DONE** (Phase 6-7)
+### Enrichment & analysis
+- ~~Currency normalization~~ **DONE** (Phase 17)
+- ~~Cross-source dedup~~ **DONE** (Phase 6-7)
 - **Relevance scoring**: Score each call against the group's research profile
 - **Network mapping**: Who collaborates with whom in quantum computing?
 - **Publication linking**: OpenAlex/OpenAIRE link grants to publications — measure research output per EUR
-- **EUR conversion**: Add `total_funding_eur` column with historical exchange rates for cross-currency comparison
+- **OpenAIRE Graph API v1** — would add abstracts for NIH/NSF/DFG/SNSF (which have 0% in the bulk dump). Token: https://develop.openaire.eu/personal-token (7200 req/hr).
+
+---
 
 ### Commercial Sources (if budget allows)
 - **Dimensions API**: Most comprehensive commercial grant database, would cover most gaps
@@ -119,10 +88,18 @@ These funders have proper APIs and would add rich data:
 
 ### Database
 - DuckDB single file at `data/db/fundingscape.duckdb` (~1,340 MB)
-- Schema defined in `src/fundingscape/db.py`
+- Second derivative DB: `data/db/quantum_applications.duckdb` (~6 MB) — 124 QC applications, advantage classification, funding links
+- Schema defined in `src/fundingscape/db.py` and `src/fundingscape/qa_db.py`
 - Tables: `grant_award`, `call`, `funder`, `funding_instrument`, `eligibility_profile`, `data_source`, `change_log`
-- View: `grant_award_deduped` — canonical grants only (`WHERE dedup_of IS NULL`), use this for all queries
-- Key columns added: `dedup_of` (soft dedup flag), `funder_id` (links to funder table, 99.5% coverage)
+- View: `grant_award_deduped` — canonical grants (`WHERE dedup_of IS NULL AND is_aggregate IS NOT TRUE`); always use this view
+- Schema additions over phases:
+  - `dedup_of` INTEGER — soft dedup flag (Phase 6)
+  - `funder_id` INTEGER — funder table link, 99.5% coverage (Phase 7)
+  - `is_aggregate` BOOLEAN — flag for aggregated programme records (Phase 12)
+  - `total_funding_estimated` DOUBLE — DFG-style estimates by programme type (Phase 13)
+  - `funding_estimate_method` TEXT — provenance of estimate (Phase 13)
+  - `ror_id` TEXT — canonical ROR institution ID (Phase 15)
+  - `total_funding_eur` DOUBLE — EUR-normalized via ECB rates (Phase 17)
 - Use `duckdb.connect('data/db/fundingscape.duckdb')` to query directly
 
 ### Caching
@@ -158,10 +135,13 @@ These funders have proper APIs and would add rich data:
 ### Environment
 - Python 3.12.3, uv 0.9.17
 - DuckDB 1.4.4, pydantic 2.12.5, httpx 0.28.1
-- 167 tests, all passing in <6 seconds
+- 252 tests (1 unrelated time-sensitive UKRI test fails because a fixture grant ended 2026-03-30 and we're now past that date)
 - GitHub: https://github.com/tobiasosborne/fundingscape
 - Data integrity pipeline: `src/fundingscape/dedup.py` (date cleanup, country/currency normalization, funder linkage, cross-source dedup — all idempotent)
-- Issues: `bd list` (6 P1 closed, ~37 open)
+- Currency conversion: `src/fundingscape/currency.py` (ECB annual reference rates 1995-2026 for 15 currencies)
+- Quality audit: `scripts/quality_audit.py` (per-source NULL/anomaly/dedup/funder-linkage report)
+- FP audit: `scripts/sample_qa_matches.py` (samples random matches per over-matched QA app for manual classification)
+- Issues: `bd list --status=open` (4 open P1-P3 as of 2026-04-25 — see "Open Issues" above)
 
 ---
 
@@ -169,10 +149,10 @@ These funders have proper APIs and would add rich data:
 
 ```bash
 make update     # Run full pipeline (CORDIS + F&T Portal + Manual + OpenAIRE Bulk)
-make test       # Run 167 tests
+make test       # Run full test suite (252 tests)
 
 # Resumable bulk scrapers (run from any machine with DB + checkpoint files)
-uv run python scripts/scrape_foerderkatalog.py          # resume full 268K Förderkatalog
+uv run python scripts/scrape_foerderkatalog.py           # resume full 268K Förderkatalog
 uv run python scripts/scrape_foerderkatalog.py --status  # check progress
 uv run python scripts/scrape_gepris.py --listing-only    # phase 1: collect 152K project IDs
 uv run python scripts/scrape_gepris.py --details-only    # phase 2: fetch detail pages
@@ -180,15 +160,29 @@ uv run python scripts/scrape_gepris.py --status          # check progress
 make report     # Generate REPORT.md
 make clean      # Delete database and cache
 
-bd list         # List all issues
-bd show <id>    # Show issue details
-bd close <id>   # Close an issue
+# Quality + enrichment scripts (Phases 17-19)
+uv run python scripts/quality_audit.py                   # comprehensive DB quality audit
+uv run python scripts/normalize_currency.py              # EUR conversion (idempotent)
+uv run python scripts/enrich_openaire_abstracts.py       # backfill abstracts from cached OpenAIRE tar
+uv run python scripts/sample_qa_matches.py               # FP audit: sample matches for over-matched apps
+uv run python scripts/export_qa_table.py                 # regenerate data/qa_applications_table.md
+
+# Beads
+bd list --status=open    # Open issues
+bd show <id>             # Issue details
+bd close <id>            # Mark complete
+
+# Re-run QA matching after pattern changes (~13 min — slow due to 1400+ ILIKE patterns)
+uv run python -c "
+from fundingscape.qa_funding import compute_funding_links
+compute_funding_links(verbose=False)
+"
 
 # Direct database query
 uv run python3 -c "
 import duckdb
-conn = duckdb.connect('data/db/fundingscape.duckdb')
-print(conn.execute('SELECT COUNT(*) FROM grant_award_deduped').fetchone())
+conn = duckdb.connect('data/db/fundingscape.duckdb', read_only=True)
+print(conn.execute('SELECT COUNT(*), SUM(total_funding_eur)/1e9 FROM grant_award_deduped').fetchone())
 conn.close()
 "
 
